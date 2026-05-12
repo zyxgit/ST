@@ -17,7 +17,7 @@ public sealed class RabbitMqConnectionHealthCheck : IHealthCheck
 		HealthCheckContext context,
 		CancellationToken cancellationToken = default)
 	{
-		if (!TryGetFirstConfiguredSection(out var options))
+		if (!TryGetReference(out var options) && !TryGetFirstConfiguredSection(out options))
 		{
 			return Task.FromResult(HealthCheckResult.Healthy("RabbitMQ not configured"));
 		}
@@ -41,6 +41,37 @@ public sealed class RabbitMqConnectionHealthCheck : IHealthCheck
 		{
 			return Task.FromResult(HealthCheckResult.Unhealthy("RabbitMQ connection failed", ex));
 		}
+	}
+
+	private bool TryGetReference(out RabbitMqSectionOptions options)
+	{
+		options = default!;
+
+		var connectionStringName = _configuration["RabbitMQ:ConnectionStringName"] ?? "rabbitmq";
+		var connectionString = _configuration.GetConnectionString(connectionStringName);
+		if (string.IsNullOrWhiteSpace(connectionString))
+		{
+			return false;
+		}
+
+		var uri = new Uri(connectionString, UriKind.Absolute);
+		var userInfo = uri.UserInfo.Split(':', 2);
+		options = new RabbitMqSectionOptions
+		{
+			HostName = uri.Host,
+			Port = uri.IsDefaultPort ? 5672 : uri.Port,
+			UserName = Uri.UnescapeDataString(userInfo[0]),
+			Password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty,
+			VirtualHost = GetVirtualHost(uri)
+		};
+
+		return true;
+	}
+
+	private static string GetVirtualHost(Uri uri)
+	{
+		var path = uri.AbsolutePath.Trim('/');
+		return string.IsNullOrWhiteSpace(path) ? "/" : Uri.UnescapeDataString(path);
 	}
 
 	private bool TryGetFirstConfiguredSection(out RabbitMqSectionOptions options)

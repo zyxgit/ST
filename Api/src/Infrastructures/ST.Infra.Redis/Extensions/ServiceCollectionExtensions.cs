@@ -10,18 +10,20 @@ public static class ServiceCollectionExtensions
 {
 	public static IServiceCollection AddRedisInfra(this IServiceCollection services, IConfiguration configuration, string? connectionStringName = null)
 	{
-		if (string.IsNullOrWhiteSpace(connectionStringName))
+		var redisOptions = new RedisOptions();
+		configuration.GetSection("Redis").Bind(redisOptions);
+
+		var effectiveConnectionStringName = connectionStringName
+			?? configuration["Redis:ConnectionStringName"]
+			?? "cache";
+
+		var referencedConnectionString = configuration.GetConnectionString(effectiveConnectionStringName);
+		if (!string.IsNullOrWhiteSpace(referencedConnectionString))
 		{
-			var redisOptions = new RedisOptions();
-			configuration.GetSection("Redis").Bind(redisOptions);
-			services.AddSingleton(redisOptions);
+			redisOptions.ConnectionString = referencedConnectionString;
 		}
-		else
-		{
-			var connectionString = configuration.GetConnectionString(connectionStringName) ?? string.Empty;
-			var redisOptions = new RedisOptions(connectionString);
-			services.AddSingleton(redisOptions);
-		}
+
+		services.AddSingleton(redisOptions);
 
 		services.AddSingleton<IRedisClient, RedisClientFactory>();
 		services.AddSingleton<IRedisCacheManager, RedisCacheManager>();
