@@ -7,14 +7,14 @@ namespace ST.MS.FileUpload.Infra;
 
 public sealed class FileUploadDesignTimeDbContextFactory : NpgsqlDesignTimeDbContextFactoryBase<FileUploadDbContext>
 {
-    protected override string GetConnectionString(string[] args)
-    {
-        return Environment.GetEnvironmentVariable(SettingPrefixContants.Database_ConnectionString_Env)
-               ?? "Host=localhost;Port=15432;Username=postgres;Password=pw123456;Database=st_fileupload;";
-    }
+	protected override string GetConnectionString(string[] args)
+	{
+		return Environment.GetEnvironmentVariable(SettingPrefixContants.Database_ConnectionString_Env)
+			?? throw new InvalidOperationException($"Design-time database connection string is not configured. Set the '{SettingPrefixContants.Database_ConnectionString_Env}' environment variable.");
+	}
 
-    protected override FileUploadDbContext CreateDbContext(DbContextOptions options, string[] args)
-    {
-        return new FileUploadDbContext(options);
-    }
+	protected override FileUploadDbContext CreateDbContext(DbContextOptions options, string[] args)
+	{
+		return new FileUploadDbContext(options);
+	}
 }

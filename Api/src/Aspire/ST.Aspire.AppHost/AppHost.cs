@@ -9,12 +9,12 @@ IResourceBuilder<RedisResource> redis;
 IResourceBuilder<PostgresServerResource> postgres;
 IResourceBuilder<RabbitMQServerResource> rabbitMq;
 
-var password = builder.AddParameter("password", "pw123456");
+var password = builder.AddParameter("password");
 
-var pguser = builder.AddParameter("pguser", "postgres");
+var pguser = builder.AddParameter("pguser");
 
-var rabbitUser = builder.AddParameter("rabbitUser", "guest");
-var rabbitPassword = builder.AddParameter("rabbitPassword", "guest");
+var rabbitUser = builder.AddParameter("rabbitUser");
+var rabbitPassword = builder.AddParameter("rabbitPassword");
 
 redis = builder.AddRedis("cache", 16379)
 	.WithHostPort(16379)
