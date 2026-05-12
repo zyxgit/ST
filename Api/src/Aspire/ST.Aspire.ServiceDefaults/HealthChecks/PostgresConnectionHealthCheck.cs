@@ -10,7 +10,9 @@ public sealed class PostgresConnectionHealthCheck : IHealthCheck
 
 	public PostgresConnectionHealthCheck(IConfiguration configuration)
 	{
-		_connectionString = configuration["Database:ConnectionString"];
+		var connectionStringName = configuration["Database:ConnectionStringName"] ?? "Default";
+		_connectionString = configuration.GetConnectionString(connectionStringName)
+			?? configuration["Database:ConnectionString"];
 	}
 
 	public async Task<HealthCheckResult> CheckHealthAsync(

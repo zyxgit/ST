@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
+using ST.Infra.EventBus.RabbitMQ.Config;
 using ST.Shared.OperationLog;
 
 namespace ST.Infra.EventBus.OperationLog;
@@ -180,6 +181,7 @@ public static class RabbitMqOperationLogServiceCollectionExtensions
 	{
 		var options = new RabbitMqOperationLogOptions();
 		configuration.GetSection(sectionName).Bind(options);
+		RabbitMqConnectionStringBinder.ApplyReference(configuration, options);
 
 		services.AddSingleton(options);
 		services.AddSingleton<RabbitMqOperationLogConnection>();

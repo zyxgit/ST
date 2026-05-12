@@ -10,7 +10,7 @@ public sealed class OperationLogDesignTimeDbContextFactory : NpgsqlDesignTimeDbC
 	protected override string GetConnectionString(string[] args)
 	{
 		return Environment.GetEnvironmentVariable(SettingPrefixContants.Database_ConnectionString_Env)
-			?? "Host=localhost;Port=15432;Username=postgres;Password=pw123456;Database=st_operationlog;";
+			?? throw new InvalidOperationException($"Design-time database connection string is not configured. Set the '{SettingPrefixContants.Database_ConnectionString_Env}' environment variable.");
 	}
 
 	protected override OperationLogDbContext CreateDbContext(DbContextOptions options, string[] args)
@@ -18,4 +18,3 @@ public sealed class OperationLogDesignTimeDbContextFactory : NpgsqlDesignTimeDbC
 		return new OperationLogDbContext(options);
 	}
 }
-
