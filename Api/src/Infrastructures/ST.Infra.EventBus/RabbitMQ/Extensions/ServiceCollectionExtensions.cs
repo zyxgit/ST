@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
 	{
 		var options = new RabbitMqEventBusOptions();
 		configuration.GetSection(sectionName).Bind(options);
+		RabbitMqConnectionStringBinder.ApplyReference(configuration, options);
 
 		if (string.IsNullOrWhiteSpace(options.QueueName))
 		{
