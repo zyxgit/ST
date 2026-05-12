@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Infrastructures\ST.Infra.Core\ST.Infra.Core.csproj" />
+    <ProjectReference Include="..\..\Infrastructures\ST.Infra.Redis\ST.Infra.Redis.csproj" />
+    <ProjectReference Include="..\..\Infrastructures\ST.Infra.Tasks\ST.Infra.Tasks.csproj" />
+    <ProjectReference Include="..\ST.Shared.Domain\ST.Shared.Domain.csproj" />
+    <ProjectReference Include="..\ST.Shared\ST.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Interceptors\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mapster" Version="7.4.0" />
+  </ItemGroup>
+
+</Project>

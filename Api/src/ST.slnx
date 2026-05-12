@@ -1,0 +1,56 @@
+<Solution>
+  <Folder Name="/01.Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="aspire.config.json" />
+    <File Path="dotnet-tools.json" />
+    <File Path="nuget.config" />
+  </Folder>
+  <Folder Name="/02.Infrastructures/">
+    <Project Path="Infrastructures/ST.Infra.Core/ST.Infra.Core.csproj" Id="5bf2fb94-0b16-42cd-bb38-d7efb13ed838" />
+    <Project Path="Infrastructures/ST.Infra.Email/ST.Infra.Email.csproj" Id="17656a5a-a1c0-4e10-830c-069f0cadd90d" />
+    <Project Path="Infrastructures/ST.Infra.EventBus/ST.Infra.EventBus.csproj" Id="a20d69d5-ff0d-47c7-8f43-b06b2e07698d" />
+    <Project Path="Infrastructures/ST.Infra.EntityFramework.Npgsql/ST.Infra.EntityFramework.Npgsql.csproj" Id="8647c470-51bc-46cf-b513-7d034f68cbd8" />
+    <Project Path="Infrastructures/ST.Infra.EntityFramework/ST.Infra.EntityFramework.csproj" Id="898d7dcb-210d-462d-a00f-06ff85c4bf98" />
+    <Project Path="Infrastructures/ST.Infra.Redis/ST.Infra.Redis.csproj" Id="0d9697e8-e721-4d34-b8ec-c0452a0534e6" />
+    <Project Path="Infrastructures/ST.Infra.Repository/ST.Infra.Repository.csproj" Id="af9045d7-83e5-43ea-b846-7c84ddf2d5b4" />
+    <Project Path="Infrastructures/ST.Infra.Tasks/ST.Infra.Tasks.csproj" Id="95d48264-ec57-4ab2-9c8f-2c3408ed059e" />
+  </Folder>
+  <Folder Name="/03.Aspire/">
+    <Project Path="Aspire/ST.Aspire.AppHost/ST.Aspire.AppHost.csproj" Id="e583e991-409b-48e9-aae2-cb62767ce823" />
+    <Project Path="Aspire/ST.Aspire.ServiceDefaults/ST.Aspire.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/04.ServiceShared/">
+    <Project Path="ServiceShared/ST.Shared.Application/ST.Shared.Application.csproj" Id="132feb22-03e5-4d41-898f-a2d8d2c818e8" />
+    <Project Path="ServiceShared/ST.Shared.Domain/ST.Shared.Domain.csproj" Id="5b501c82-62e9-4950-9130-8ee4391f50f1" />
+    <Project Path="ServiceShared/ST.Shared.WebApi/ST.Shared.WebApi.csproj" Id="0c207726-d498-4204-96f5-f77323c055b9" />
+    <Project Path="ServiceShared/ST.Shared/ST.Shared.csproj" Id="280c8a7a-3f10-4b89-9e0c-5c78ce015d40" />
+  </Folder>
+  <Folder Name="/09.Microservices/" />
+  <Folder Name="/09.Microservices/FileUpload/">
+    <Project Path="Microservices/FileUpload/ST.MS.FileUpload.Api/ST.MS.FileUpload.Api.csproj" />
+    <Project Path="Microservices/FileUpload/ST.MS.FileUpload.Application/ST.MS.FileUpload.Application.csproj" />
+    <Project Path="Microservices/FileUpload/ST.MS.FileUpload.Domain/ST.MS.FileUpload.Domain.csproj" />
+    <Project Path="Microservices/FileUpload/ST.MS.FileUpload.Infra/ST.MS.FileUpload.Infra.csproj" />
+  </Folder>
+  <Folder Name="/09.Microservices/Gateway/">
+    <Project Path="Microservices/Gateway/ST.Gateway/ST.Gateway.csproj" />
+  </Folder>
+  <Folder Name="/09.Microservices/Identity/">
+    <Project Path="Microservices/Identity/ST.MS.Identity.Api/ST.MS.Identity.Api.csproj" />
+    <Project Path="Microservices/Identity/ST.MS.Identity.Application/ST.MS.Identity.Application.csproj" Id="98398968-250b-47b1-ae6c-ca922e76d654" />
+    <Project Path="Microservices/Identity/ST.MS.Identity.Domain/ST.MS.Identity.Domain.csproj" Id="53bc8515-3eed-450e-b231-c7ef6ad9ac86" />
+    <Project Path="Microservices/Identity/ST.MS.Identity.Infra/ST.MS.Identity.Infra.csproj" Id="d1f0aab6-ecf6-4518-b1ae-a9c9dba0ada5" />
+  </Folder>
+  <Folder Name="/09.Microservices/OperationLog/">
+    <Project Path="Microservices/OperationLog/ST.MS.OperationLog.Api/ST.MS.OperationLog.Api.csproj" />
+    <Project Path="Microservices/OperationLog/ST.MS.OperationLog.Application/ST.MS.OperationLog.Application.csproj" />
+    <Project Path="Microservices/OperationLog/ST.MS.OperationLog.Consumer/ST.MS.OperationLog.Consumer.csproj" Id="874224b8-80e3-43ef-b7a7-c048ee7e73d3" />
+    <Project Path="Microservices/OperationLog/ST.MS.OperationLog.Infra/ST.MS.OperationLog.Infra.csproj" Id="3f65af44-abc2-45ee-8956-df8d7f4d04f4" />
+  </Folder>
+  <Folder Name="/09.Microservices/Test/">
+    <Project Path="Microservices/Test/ST.MS.Test.Api/ST.MS.Test.Api.csproj" />
+    <Project Path="Microservices/Test/ST.MS.Test.Application/ST.MS.Test.Application.csproj" />
+    <Project Path="Microservices/Test/ST.MS.Test.Domain/ST.MS.Test.Domain.csproj" Id="8b3ea184-dbb1-4c9f-96d0-688a33a981b6" />
+    <Project Path="Microservices/Test/ST.MS.Test.Infra/ST.MS.Test.Infra.csproj" Id="2a2ae3a6-5ddb-4836-b50d-da433efbd7fc" />
+  </Folder>
+</Solution>

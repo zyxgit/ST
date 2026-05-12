@@ -1,0 +1,15 @@
+---
+description: ST Monorepo 全仓 AI 规范入口（与 docs/ai 一致）
+alwaysApply: true
+---
+
+# ST Monorepo — AI 规则（总览）
+
+- **规范真源**：`docs/ai/README.md` 及子目录 `common/`、`api/`、`web/`、`skills/`（`*.skill.md` Agent 索引）。
+- **后端**：`Api/src/ST.slnx`；分层 `*.Api` / `*.Application` / `*.Domain` / `*.Infra`；启动链 `AddServiceDefaults` + `AddSharedWebApi` + `UseSharedWebApi`（见 `docs/ai/api/ServiceTemplate.md`）。
+- **前端**：仅用 `Web/src/lib/request.ts`；路由 `Web/src/router/routes.ts`；权限常量 `Web/src/constants/permissions.ts`；Pinia `Web/src/stores/auth.ts`。
+- **异常**：`BusinessException`、`DomainException`；响应 `application/problem+json`。
+- **禁止**：Submodule；仓库内真实密钥；绕过网关向前端硬编码多个生产基址（除非文档化本地调试）；第二套 Axios 实例。
+- **文档**：交付功能时**必须**按 `docs/ai/common/DocumentationSync.md` 更新或新增相关 Markdown（`docs/ai/**` 及 `docs/architecture|deploy|database|api` 索引），与代码同一 PR；禁止空文档。
+
+任务执行前打开对应 `docs/ai/**` 专题文档；语言与风格见 `docs/ai/api/CodingStyle.md` 与 `docs/ai/web/CodingStyle.md`。

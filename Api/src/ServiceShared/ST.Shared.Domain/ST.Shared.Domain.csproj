@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Infrastructures\ST.Infra.Core\ST.Infra.Core.csproj" />
+    <ProjectReference Include="..\..\Infrastructures\ST.Infra.EntityFramework\ST.Infra.EntityFramework.csproj" />
+    <ProjectReference Include="..\..\Infrastructures\ST.Infra.Repository\ST.Infra.Repository.csproj" />
+    <ProjectReference Include="..\ST.Shared\ST.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Enums\" />
+  </ItemGroup>
+
+</Project>

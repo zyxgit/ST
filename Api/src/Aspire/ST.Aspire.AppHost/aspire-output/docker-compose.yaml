@@ -1,0 +1,173 @@
+services:
+  env-dashboard:
+    image: "mcr.microsoft.com/dotnet/nightly/aspire-dashboard:latest"
+    ports:
+      - "18888"
+    expose:
+      - "18889"
+      - "18890"
+    networks:
+      - "aspire"
+    restart: "always"
+  cache:
+    image: "docker.io/library/redis:8.6"
+    command:
+      - "-c"
+      - "redis-server --requirepass $$REDIS_PASSWORD --save 60 1"
+    entrypoint:
+      - "/bin/sh"
+    environment:
+      REDIS_PASSWORD: "${PASSWORD}"
+    expose:
+      - "6379"
+    volumes:
+      - type: "volume"
+        target: "/data"
+        source: "st.aspire.apphost-9ba2078f19-cache-data"
+        read_only: false
+    networks:
+      - "aspire"
+  postgres:
+    image: "docker.io/library/postgres:17.6"
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256"
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+      POSTGRES_USER: "${PGUSER}"
+      POSTGRES_PASSWORD: "${PASSWORD}"
+    expose:
+      - "5432"
+    volumes:
+      - type: "volume"
+        target: "/var/lib/postgresql/data"
+        source: "st.aspire.apphost-9ba2078f19-postgres-data"
+        read_only: false
+    networks:
+      - "aspire"
+  rabbitmq:
+    image: "docker.io/library/rabbitmq:4.2-management"
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBITUSER}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITPASSWORD}"
+    expose:
+      - "5672"
+      - "15672"
+    volumes:
+      - type: "volume"
+        target: "/var/lib/rabbitmq"
+        source: "st.aspire.apphost-9ba2078f19-rabbitmq-data"
+        read_only: false
+    networks:
+      - "aspire"
+  st-ms-test-api:
+    image: "${ST_MS_TEST_API_IMAGE}"
+    environment:
+      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      HTTP_PORTS: "${ST_MS_TEST_API_PORT}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://env-dashboard:18889"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_SERVICE_NAME: "st-ms-test-api"
+    expose:
+      - "${ST_MS_TEST_API_PORT}"
+    depends_on:
+      cache:
+        condition: "service_started"
+      postgres:
+        condition: "service_started"
+      rabbitmq:
+        condition: "service_started"
+    networks:
+      - "aspire"
+  st-ms-fileupload-api:
+    image: "${ST_MS_FILEUPLOAD_API_IMAGE}"
+    environment:
+      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      HTTP_PORTS: "${ST_MS_FILEUPLOAD_API_PORT}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://env-dashboard:18889"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_SERVICE_NAME: "st-ms-fileupload-api"
+    expose:
+      - "${ST_MS_FILEUPLOAD_API_PORT}"
+    depends_on:
+      cache:
+        condition: "service_started"
+      postgres:
+        condition: "service_started"
+      rabbitmq:
+        condition: "service_started"
+    networks:
+      - "aspire"
+  st-ms-identity-api:
+    image: "${ST_MS_IDENTITY_API_IMAGE}"
+    environment:
+      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      HTTP_PORTS: "${ST_MS_IDENTITY_API_PORT}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://env-dashboard:18889"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_SERVICE_NAME: "st-ms-identity-api"
+    expose:
+      - "${ST_MS_IDENTITY_API_PORT}"
+    depends_on:
+      cache:
+        condition: "service_started"
+      postgres:
+        condition: "service_started"
+      rabbitmq:
+        condition: "service_started"
+    networks:
+      - "aspire"
+  st-ms-operationlog-api:
+    image: "${ST_MS_OPERATIONLOG_API_IMAGE}"
+    environment:
+      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      HTTP_PORTS: "${ST_MS_OPERATIONLOG_API_PORT}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://env-dashboard:18889"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_SERVICE_NAME: "st-ms-operationlog-api"
+    expose:
+      - "${ST_MS_OPERATIONLOG_API_PORT}"
+    depends_on:
+      postgres:
+        condition: "service_started"
+    networks:
+      - "aspire"
+  st-ms-operationlog-consumer:
+    image: "${ST_MS_OPERATIONLOG_CONSUMER_IMAGE}"
+    environment:
+      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://env-dashboard:18889"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_SERVICE_NAME: "st-ms-operationlog-consumer"
+    depends_on:
+      postgres:
+        condition: "service_started"
+      rabbitmq:
+        condition: "service_started"
+    networks:
+      - "aspire"
+  st-gateway:
+    image: "${ST_GATEWAY_IMAGE}"
+    environment:
+      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      HTTP_PORTS: "${ST_GATEWAY_PORT}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://env-dashboard:18889"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_SERVICE_NAME: "st-gateway"
+    expose:
+      - "${ST_GATEWAY_PORT}"
+    networks:
+      - "aspire"
+networks:
+  aspire:
+    driver: "bridge"
+volumes:
+  st.aspire.apphost-9ba2078f19-cache-data:
+    driver: "local"
+  st.aspire.apphost-9ba2078f19-postgres-data:
+    driver: "local"
+  st.aspire.apphost-9ba2078f19-rabbitmq-data:
+    driver: "local"

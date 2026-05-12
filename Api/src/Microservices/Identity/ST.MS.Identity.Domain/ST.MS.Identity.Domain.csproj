@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<GenerateDocumentationFile>True</GenerateDocumentationFile>
+		<NoWarn>$(NoWarn);CS1591</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\..\ServiceShared\ST.Shared.Domain\ST.Shared.Domain.csproj" />
+		<ProjectReference Include="..\..\..\ServiceShared\ST.Shared\ST.Shared.csproj" />
+	</ItemGroup>
+
+</Project>

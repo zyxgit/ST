@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ST Gateway Docs</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f7f5;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #4b5563;
+      --line: #d1d5db;
+      --link: #0f766e;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #eef6f2 0%, var(--bg) 100%);
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 20px 64px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 36px;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px;
+      background: var(--card);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+
+    .card a {
+      display: block;
+      margin-top: 8px;
+      color: var(--link);
+      text-decoration: none;
+    }
+
+    .card a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>ST Gateway 文档入口</h1>
+    <p>通过网关统一访问各微服务的 OpenAPI 和 Scalar 页面。</p>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Gateway</h2>
+        <a href="/scalar/v1" target="_blank" rel="noopener noreferrer">Scalar</a>
+        <a href="/openapi/v1.json" target="_blank" rel="noopener noreferrer">OpenAPI</a>
+      </section>
+
+      <section class="card">
+        <h2>Identity</h2>
+        <a href="/docs/identity/scalar/v1" target="_blank" rel="noopener noreferrer">Scalar</a>
+        <a href="/docs/identity/openapi/v1.json" target="_blank" rel="noopener noreferrer">OpenAPI</a>
+      </section>
+
+      <section class="card">
+        <h2>OperationLog</h2>
+        <a href="/docs/operationlog/scalar/v1" target="_blank" rel="noopener noreferrer">Scalar</a>
+        <a href="/docs/operationlog/openapi/v1.json" target="_blank" rel="noopener noreferrer">OpenAPI</a>
+      </section>
+
+      <section class="card">
+        <h2>Test</h2>
+        <a href="/docs/test/scalar/v1" target="_blank" rel="noopener noreferrer">Scalar</a>
+        <a href="/docs/test/openapi/v1.json" target="_blank" rel="noopener noreferrer">OpenAPI</a>
+      </section>
+
+      <section class="card">
+        <h2>FileUpload</h2>
+        <a href="/docs/fileupload/scalar/v1" target="_blank" rel="noopener noreferrer">Scalar</a>
+        <a href="/docs/fileupload/openapi/v1.json" target="_blank" rel="noopener noreferrer">OpenAPI</a>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

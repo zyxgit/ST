@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "ST.MS.OperationLog.Api": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:51001;http://localhost:51002"
+    }
+  }
+}

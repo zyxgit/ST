@@ -1,0 +1,114 @@
+:root {
+  color-scheme: light;
+  font-family:
+    'PingFang SC',
+    'Microsoft YaHei',
+    'Helvetica Neue',
+    sans-serif;
+  background: #f1f5f9;
+  color: #1f2937;
+  line-height: 1.5;
+  font-weight: 400;
+  text-rendering: optimizeLegibility;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --app-bg: #f1f5f9;
+  --app-bg-soft: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  --panel-bg: rgba(255, 255, 255, 0.94);
+  --panel-bg-strong: #ffffff;
+  --panel-bg-soft: #f8fafc;
+  --panel-border: #e2e8f0;
+  --text-1: #0f172a;
+  --text-2: #475569;
+  --text-3: #64748b;
+  --shadow-1: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --app-bg: #0b1017;
+  --app-bg-soft: linear-gradient(180deg, #10161f 0%, #0c1118 100%);
+  --panel-bg: rgba(15, 20, 28, 0.96);
+  --panel-bg-strong: #14181f;
+  --panel-bg-soft: #1a2029;
+  --panel-border: #252b36;
+  --text-1: #f3f4f6;
+  --text-2: #d1d5db;
+  --text-3: #94a3b8;
+  --shadow-1: 0 16px 36px rgba(0, 0, 0, 0.32);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  min-width: 1280px;
+  overflow: hidden;
+  background: var(--app-bg);
+  color: var(--text-2);
+}
+
+body[data-color-weak='true'] {
+  filter: grayscale(0.2) contrast(0.95);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.page-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 100%;
+}
+
+.page-card {
+  border-radius: 16px;
+  box-shadow: var(--shadow-1);
+}
+
+.page-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.page-subtitle {
+  margin: 6px 0 0;
+  color: var(--text-3);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+:root[data-theme-transition='to-dark']::view-transition-old(root) {
+  z-index: 1;
+}
+
+:root[data-theme-transition='to-dark']::view-transition-new(root) {
+  z-index: 9999;
+}
+
+:root[data-theme-transition='to-light']::view-transition-old(root) {
+  z-index: 9999;
+}
+
+:root[data-theme-transition='to-light']::view-transition-new(root) {
+  z-index: 1;
+}
