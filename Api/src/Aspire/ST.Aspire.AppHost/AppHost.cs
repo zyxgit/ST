@@ -18,16 +18,21 @@ var rabbitPassword = builder.AddParameter("rabbitPassword", "guest");
 
 redis = builder.AddRedis("cache", 16379)
 	.WithHostPort(16379)
-   .WithPassword(password)
-   .WithDataVolume()
-   .WithLifetime(ContainerLifetime.Persistent);
+	.WithPassword(password)
+	.WithDataVolume()
+	.WithLifetime(ContainerLifetime.Persistent);
 
 
 postgres = builder.AddPostgres("postgres", pguser, port: 15432)
-.WithHostPort(15432)
-   .WithPassword(password)
-   .WithDataVolume()
-   .WithLifetime(ContainerLifetime.Persistent);
+	.WithHostPort(15432)
+	.WithPassword(password)
+	.WithDataVolume()
+	.WithLifetime(ContainerLifetime.Persistent);
+
+var testDb = postgres.AddDatabase("st-test", "st_test");
+var fileUploadDb = postgres.AddDatabase("st-fileupload", "st_fileupload");
+var identityDb = postgres.AddDatabase("st-identity", "st_identity");
+var operationLogDb = postgres.AddDatabase("st-operationlog", "st_operationlog");
 
 rabbitMq = builder.AddRabbitMQ("rabbitmq", rabbitUser, rabbitPassword, port: 5672)
 	.WithDataVolume()
@@ -36,25 +41,37 @@ rabbitMq = builder.AddRabbitMQ("rabbitmq", rabbitUser, rabbitPassword, port: 567
 
 
 builder.AddProject<Projects.ST_MS_Test_Api>("st-ms-test-api")
+	.WithReference(testDb, "Default")
+	.WithReference(redis)
+	.WithReference(rabbitMq)
+	.WaitFor(testDb)
 	.WaitFor(redis)
-	.WaitFor(postgres)
 	.WaitFor(rabbitMq);
 
 builder.AddProject<Projects.ST_MS_FileUpload_Api>("st-ms-fileupload-api")
-	.WaitFor(redis)
-	.WaitFor(postgres)
-	.WaitFor(rabbitMq);
+	.WithReference(fileUploadDb, "Default")
+	.WithReference(redis)
+	.WaitFor(fileUploadDb)
+	.WaitFor(redis);
 
 builder.AddProject<Projects.ST_MS_Identity_Api>("st-ms-identity-api")
+	.WithReference(identityDb, "Default")
+	.WithReference(redis)
+	.WithReference(rabbitMq)
+	.WaitFor(identityDb)
 	.WaitFor(redis)
-	.WaitFor(postgres)
 	.WaitFor(rabbitMq);
 
 builder.AddProject<Projects.ST_MS_OperationLog_Api>("st-ms-operationlog-api")
-	.WaitFor(postgres);
+	.WithReference(operationLogDb, "Default")
+	.WithReference(redis)
+	.WaitFor(operationLogDb)
+	.WaitFor(redis);
 
 builder.AddProject<Projects.ST_MS_OperationLog_Consumer>("st-ms-operationlog-consumer")
-	.WaitFor(postgres)
+	.WithReference(operationLogDb, "Default")
+	.WithReference(rabbitMq)
+	.WaitFor(operationLogDb)
 	.WaitFor(rabbitMq);
 
 builder.AddProject<Projects.ST_Gateway>("st-gateway");

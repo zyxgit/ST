@@ -4,6 +4,7 @@ using NLog.Extensions.Logging;
 using ST.Infra.EntityFramework.CodeFirst;
 using ST.Infra.EntityFramework.Npgsql.Extensions;
 using ST.Infra.EventBus.OperationLog;
+using ST.Infra.EventBus.RabbitMQ.Config;
 using ST.Infra.Repository.Interface;
 using ST.MS.OperationLog.Consumer;
 using ST.MS.OperationLog.Consumer.Infrastructure;
@@ -27,6 +28,7 @@ builder.Services.AddSingleton(sp =>
 {
 	var opt = new RabbitMqOperationLogOptions();
 	builder.Configuration.GetSection("RabbitMQ:OperationLog").Bind(opt);
+	RabbitMqConnectionStringBinder.ApplyReference(builder.Configuration, opt);
 	return opt;
 });
 

@@ -10,7 +10,9 @@ public sealed class RedisConnectionHealthCheck : IHealthCheck
 
 	public RedisConnectionHealthCheck(IConfiguration configuration)
 	{
-		_connectionString = configuration["Redis:ConnectionString"];
+		var connectionStringName = configuration["Redis:ConnectionStringName"] ?? "cache";
+		_connectionString = configuration.GetConnectionString(connectionStringName)
+			?? configuration["Redis:ConnectionString"];
 	}
 
 	public async Task<HealthCheckResult> CheckHealthAsync(

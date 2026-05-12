@@ -11,7 +11,7 @@ public static class DatabaseConnectionInfoResolver
 {
 	// 新约定（推荐）：
 	// - Database:Provider
-	// - Database:ConnectionString 或 ConnectionStrings:Default
+	// - Database:ConnectionString、Database:ConnectionStringName 指向的 ConnectionStrings:{name} 或 ConnectionStrings:Default
 	//
 	// 旧约定（仍兼容，便于渐进迁移）：
 	// - DbConnectionString:DbType + DbConnectionString:{DbType}
@@ -22,8 +22,12 @@ public static class DatabaseConnectionInfoResolver
 			configuration["Database:Provider"]
 			?? configuration["Database:DbType"];
 
+		var connectionStringName = configuration["Database:ConnectionStringName"];
 		var connectionString =
 			configuration["Database:ConnectionString"]
+			?? (!string.IsNullOrWhiteSpace(connectionStringName)
+				? configuration.GetConnectionString(connectionStringName)
+				: null)
 			?? configuration.GetConnectionString("Default");
 
 		if (!string.IsNullOrWhiteSpace(connectionString))
@@ -56,6 +60,6 @@ public static class DatabaseConnectionInfoResolver
 		}
 
 		throw new InvalidOperationException(
-			"数据库连接未配置。请设置 'Database:ConnectionString'（推荐）或 'ConnectionStrings:Default'。");
+			"数据库连接未配置。请设置 'Database:ConnectionString'、'Database:ConnectionStringName' 指向的连接字符串，或 'ConnectionStrings:Default'。");
 	}
 }
