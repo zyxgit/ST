@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using RabbitMQ.Client;
 
 namespace Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -13,13 +12,13 @@ public sealed class RabbitMqConnectionHealthCheck : IHealthCheck
 		_configuration = configuration;
 	}
 
-	public Task<HealthCheckResult> CheckHealthAsync(
+	public async Task<HealthCheckResult> CheckHealthAsync(
 		HealthCheckContext context,
 		CancellationToken cancellationToken = default)
 	{
 		if (!TryGetReference(out var options) && !TryGetFirstConfiguredSection(out options))
 		{
-			return Task.FromResult(HealthCheckResult.Healthy("RabbitMQ not configured"));
+			return HealthCheckResult.Healthy("RabbitMQ not configured");
 		}
 
 		try
@@ -33,13 +32,13 @@ public sealed class RabbitMqConnectionHealthCheck : IHealthCheck
 				VirtualHost = options.VirtualHost
 			};
 
-			using var conn = factory.CreateConnection();
+			using var conn = await factory.CreateConnectionAsync(cancellationToken);
 			// CreateConnection 成功即认为可达（健康检查目的通常只要连通性）
-			return Task.FromResult(HealthCheckResult.Healthy("RabbitMQ reachable"));
+			return HealthCheckResult.Healthy("RabbitMQ reachable");
 		}
 		catch (Exception ex)
 		{
-			return Task.FromResult(HealthCheckResult.Unhealthy("RabbitMQ connection failed", ex));
+			return HealthCheckResult.Unhealthy("RabbitMQ connection failed", ex);
 		}
 	}
 
