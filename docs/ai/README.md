@@ -10,6 +10,7 @@
 | 后端 | [`api/`](./api/) | DDD 分层、EF Core、JWT、网关、Hangfire、DTO/异常/Result |
 | 前端 | [`web/`](./web/) | Vue3、Pinia、路由权限、请求封装、组件与样式 |
 | AI 规则 | [`AI-RULES.md`](./AI-RULES.md) | **AI 生成强制规则统一入口**，聚合各域规则 |
+| 文档巡检 | [`DOCUMENTATION-AUDIT.md`](./DOCUMENTATION-AUDIT.md) | 当前仓库事实、文档缺口、后续同步清单 |
 | Agent Skill | [`skills/`](./skills/) | **ST AI Skill Center**：高密度 `*.skill.md`（后端/前端/架构等） |
 
 ## 项目事实摘要（与仓库一致）
@@ -28,7 +29,7 @@
 
 ## 阅读入口
 
-AI Agent **首先阅读** [`AI-RULES.md`](./AI-RULES.md)（通用规则 + 各域导航），再按域阅读 `api/AI-Rules.md` 或 `web/AI-Rules.md`。
+AI Agent **首先阅读** [`AI-RULES.md`](./AI-RULES.md)（通用规则 + 各域导航），再核对 [`DOCUMENTATION-AUDIT.md`](./DOCUMENTATION-AUDIT.md) 的项目事实与文档缺口，最后按域阅读 `api/AI-Rules.md` 或 `web/AI-Rules.md`。
 
 ## 与根目录规范联动
 
@@ -39,7 +40,7 @@ AI Agent **首先阅读** [`AI-RULES.md`](./AI-RULES.md)（通用规则 + 各域
 ## AI 使用约束（总览）
 
 - 以本目录为真源；修改业务代码前须对照 `api/` 与 `web/` 中的**禁止事项**与**真实类型/文件路径**。
-- **功能新增/变更须同步更新 Markdown**（同一变更集内）：见 [`common/DocumentationSync.md`](./common/DocumentationSync.md)。
+- **功能新增/变更须同步更新 Markdown**（同一变更集内）：见 [`common/DocumentationSync.md`](./common/DocumentationSync.md)，并将根目录 `README.md` 与 [`DOCUMENTATION-AUDIT.md`](./DOCUMENTATION-AUDIT.md) 纳入检查。
 - 不引入 Submodule；不移动 `Api` / `Web` 顶层结构；不提交密钥与本地环境文件（见 `common/Git.md`）。
 
 ## 相关导航
