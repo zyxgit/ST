@@ -48,12 +48,11 @@ public sealed class RabbitMqOperationLogConnection : IDisposable
 					UserName = _options.UserName,
 					Password = _options.Password,
 					VirtualHost = _options.VirtualHost,
-					DispatchConsumersAsync = true,
 					AutomaticRecoveryEnabled = true,
 					NetworkRecoveryInterval = TimeSpan.FromSeconds(10),
 				};
 
-				_connection = factory.CreateConnection();
+				_connection = factory.CreateConnectionAsync().GetAwaiter().GetResult();
 				_logger.LogInformation("RabbitMQ operationlog connection established to {Host}:{Port}/{VHost}.",
 					_options.HostName, _options.Port, _options.VirtualHost);
 				return true;
@@ -66,14 +65,14 @@ public sealed class RabbitMqOperationLogConnection : IDisposable
 		}
 	}
 
-	public IModel CreateModel()
+	public Task<IChannel> CreateChannelAsync(CancellationToken cancellationToken = default)
 	{
 		if (!IsConnected)
 		{
 			throw new InvalidOperationException("RabbitMQ operationlog connection is not available.");
 		}
 
-		return _connection!.CreateModel();
+		return _connection!.CreateChannelAsync(cancellationToken: cancellationToken);
 	}
 
 	public void Dispose()
@@ -130,26 +129,30 @@ public sealed class RabbitMqOperationLogSink : IOperationLogSink
 
 			try
 			{
-				using var channel = _connection.CreateModel();
+				using var channel = await _connection.CreateChannelAsync(cancellationToken).ConfigureAwait(false);
 
-				channel.ExchangeDeclare(
+				await channel.ExchangeDeclareAsync(
 					exchange: _options.ExchangeName,
 					type: ExchangeType.Direct,
 					durable: _options.Durable,
-					autoDelete: _options.AutoDelete);
+					autoDelete: _options.AutoDelete,
+					cancellationToken: cancellationToken).ConfigureAwait(false);
 
-				var props = channel.CreateBasicProperties();
-				props.ContentType = "application/json";
-				props.DeliveryMode = _options.Durable ? (byte)2 : (byte)1;
-				props.Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-				props.Type = nameof(OperationLogEntry);
+				var props = new BasicProperties
+				{
+					ContentType = "application/json",
+					Persistent = _options.Durable,
+					Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
+					Type = nameof(OperationLogEntry)
+				};
 
-				channel.BasicPublish(
+				await channel.BasicPublishAsync(
 					exchange: _options.ExchangeName,
 					routingKey: _options.RoutingKey,
 					mandatory: false,
 					basicProperties: props,
-					body: body);
+					body: body,
+					cancellationToken: cancellationToken).ConfigureAwait(false);
 
 				return;
 			}

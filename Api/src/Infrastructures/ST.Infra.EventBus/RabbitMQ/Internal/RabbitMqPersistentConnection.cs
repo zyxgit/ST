@@ -19,14 +19,14 @@ public sealed class RabbitMqPersistentConnection : IRabbitMqPersistentConnection
 
 	public bool IsConnected => _connection is { IsOpen: true } && !_disposed;
 
-	public IModel CreateModel()
+	public Task<IChannel> CreateChannelAsync(CancellationToken cancellationToken = default)
 	{
 		if (!IsConnected)
 		{
 			throw new InvalidOperationException("RabbitMQ connection is not available.");
 		}
 
-		return _connection!.CreateModel();
+		return _connection!.CreateChannelAsync(cancellationToken: cancellationToken);
 	}
 
 	public bool TryConnect()
@@ -52,21 +52,29 @@ public sealed class RabbitMqPersistentConnection : IRabbitMqPersistentConnection
 					UserName = _options.UserName,
 					Password = _options.Password,
 					VirtualHost = _options.VirtualHost,
-					DispatchConsumersAsync = true,
 					AutomaticRecoveryEnabled = _options.AutomaticRecoveryEnabled,
 					NetworkRecoveryInterval = TimeSpan.FromSeconds(_options.NetworkRecoveryIntervalSeconds),
 				};
 
-				_connection = factory.CreateConnection();
+				_connection = factory.CreateConnectionAsync().GetAwaiter().GetResult();
 
-				_connection.ConnectionShutdown += (_, ea) =>
+				_connection.ConnectionShutdownAsync += (_, ea) =>
+				{
 					_logger.LogWarning("RabbitMQ connection shutdown: {ReplyCode} {ReplyText}", ea.ReplyCode, ea.ReplyText);
+					return Task.CompletedTask;
+				};
 
-				_connection.CallbackException += (_, ea) =>
+				_connection.CallbackExceptionAsync += (_, ea) =>
+				{
 					_logger.LogError(ea.Exception, "RabbitMQ connection callback exception.");
+					return Task.CompletedTask;
+				};
 
-				_connection.ConnectionBlocked += (_, ea) =>
+				_connection.ConnectionBlockedAsync += (_, ea) =>
+				{
 					_logger.LogWarning("RabbitMQ connection blocked: {Reason}", ea.Reason);
+					return Task.CompletedTask;
+				};
 
 				_logger.LogInformation("RabbitMQ persistent connection established to {Host}:{Port}/{VHost}.",
 					_options.HostName, _options.Port, _options.VirtualHost);

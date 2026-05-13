@@ -16,7 +16,7 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
 	private readonly ILogger<RabbitMqEventBus> _logger;
 	private readonly object _consumerChannelLock = new();
 
-	private IModel? _consumerChannel;
+	private IChannel? _consumerChannel;
 	private string? _consumerTag;
 
 	public RabbitMqEventBus(
@@ -51,26 +51,30 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
 
 			try
 			{
-				using var channel = _persistentConnection.CreateModel();
+				using var channel = await _persistentConnection.CreateChannelAsync(cancellationToken).ConfigureAwait(false);
 
-				channel.ExchangeDeclare(
+				await channel.ExchangeDeclareAsync(
 					exchange: _options.ExchangeName,
 					type: ExchangeType.Direct,
 					durable: _options.Durable,
-					autoDelete: _options.AutoDelete);
+					autoDelete: _options.AutoDelete,
+					cancellationToken: cancellationToken).ConfigureAwait(false);
 
-				var properties = channel.CreateBasicProperties();
-				properties.MessageId = @event.Id.ToString();
-				properties.Type = eventName;
-				properties.ContentType = "application/json";
-				properties.DeliveryMode = _options.Durable ? (byte)2 : (byte)1;
+				var properties = new BasicProperties
+				{
+					MessageId = @event.Id.ToString(),
+					Type = eventName,
+					ContentType = "application/json",
+					Persistent = _options.Durable
+				};
 
-				channel.BasicPublish(
+				await channel.BasicPublishAsync(
 					exchange: _options.ExchangeName,
 					routingKey: eventName,
 					mandatory: false,
 					basicProperties: properties,
-					body: body);
+					body: body,
+					cancellationToken: cancellationToken).ConfigureAwait(false);
 
 				return;
 			}
@@ -113,7 +117,7 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
 		{
 			if (!string.IsNullOrWhiteSpace(_consumerTag) && _consumerChannel is { IsOpen: true })
 			{
-				_consumerChannel.BasicCancel(_consumerTag);
+				_consumerChannel.BasicCancelAsync(_consumerTag).GetAwaiter().GetResult();
 			}
 		}
 		catch (Exception ex)
@@ -141,20 +145,20 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
 			return;
 		}
 
-		using var channel = _persistentConnection.CreateModel();
+		using var channel = _persistentConnection.CreateChannelAsync().GetAwaiter().GetResult();
 
-		channel.ExchangeDeclare(
+		channel.ExchangeDeclareAsync(
 			exchange: _options.ExchangeName,
 			type: ExchangeType.Direct,
 			durable: _options.Durable,
-			autoDelete: _options.AutoDelete);
+			autoDelete: _options.AutoDelete).GetAwaiter().GetResult();
 
-		channel.QueueDeclare(
+		channel.QueueDeclareAsync(
 			queue: _options.QueueName,
 			durable: _options.Durable,
 			exclusive: false,
 			autoDelete: _options.AutoDelete,
-			arguments: null);
+			arguments: null).GetAwaiter().GetResult();
 	}
 
 	private void EnsureConnectedOrThrow()
@@ -185,38 +189,38 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
 			_consumerChannel = CreateConsumerChannel();
 
 			var consumer = new AsyncEventingBasicConsumer(_consumerChannel);
-			consumer.Received += OnMessageReceivedAsync;
+			consumer.ReceivedAsync += OnMessageReceivedAsync;
 
-			_consumerTag = _consumerChannel.BasicConsume(
+			_consumerTag = _consumerChannel.BasicConsumeAsync(
 				queue: _options.QueueName,
 				autoAck: false,
-				consumer: consumer);
+				consumer: consumer).GetAwaiter().GetResult();
 
 			_logger.LogInformation("RabbitMQ event bus consuming started. Exchange={Exchange} Queue={Queue}",
 				_options.ExchangeName, _options.QueueName);
 		}
 	}
 
-	private IModel CreateConsumerChannel()
+	private IChannel CreateConsumerChannel()
 	{
-		var channel = _persistentConnection.CreateModel();
+		var channel = _persistentConnection.CreateChannelAsync().GetAwaiter().GetResult();
 
-		channel.ExchangeDeclare(
+		channel.ExchangeDeclareAsync(
 			exchange: _options.ExchangeName,
 			type: ExchangeType.Direct,
 			durable: _options.Durable,
-			autoDelete: _options.AutoDelete);
+			autoDelete: _options.AutoDelete).GetAwaiter().GetResult();
 
-		channel.QueueDeclare(
+		channel.QueueDeclareAsync(
 			queue: _options.QueueName,
 			durable: _options.Durable,
 			exclusive: false,
 			autoDelete: _options.AutoDelete,
-			arguments: null);
+			arguments: null).GetAwaiter().GetResult();
 
-		channel.BasicQos(prefetchSize: 0, prefetchCount: _options.PrefetchCount, global: false);
+		channel.BasicQosAsync(prefetchSize: 0, prefetchCount: _options.PrefetchCount, global: false).GetAwaiter().GetResult();
 
-		channel.CallbackException += (_, ea) =>
+		channel.CallbackExceptionAsync += (_, ea) =>
 		{
 			_logger.LogError(ea.Exception, "RabbitMQ consumer channel exception; recreating consumer channel.");
 			lock (_consumerChannelLock)
@@ -225,6 +229,8 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
 				_consumerChannel?.Dispose();
 				_consumerChannel = null;
 			}
+
+			return Task.CompletedTask;
 		};
 
 		return channel;
@@ -234,42 +240,42 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
 	{
 		EnsureConnectedOrThrow();
 
-		using var channel = _persistentConnection.CreateModel();
+		using var channel = _persistentConnection.CreateChannelAsync().GetAwaiter().GetResult();
 
-		channel.ExchangeDeclare(
+		channel.ExchangeDeclareAsync(
 			exchange: _options.ExchangeName,
 			type: ExchangeType.Direct,
 			durable: _options.Durable,
-			autoDelete: _options.AutoDelete);
+			autoDelete: _options.AutoDelete).GetAwaiter().GetResult();
 
-		channel.QueueDeclare(
+		channel.QueueDeclareAsync(
 			queue: _options.QueueName,
 			durable: _options.Durable,
 			exclusive: false,
 			autoDelete: _options.AutoDelete,
-			arguments: null);
+			arguments: null).GetAwaiter().GetResult();
 
-		channel.QueueBind(
+		channel.QueueBindAsync(
 			queue: _options.QueueName,
 			exchange: _options.ExchangeName,
-			routingKey: eventName);
+			routingKey: eventName).GetAwaiter().GetResult();
 	}
 
 	private void DoInternalQueueUnbind(string eventName)
 	{
 		EnsureConnectedOrThrow();
 
-		using var channel = _persistentConnection.CreateModel();
-		channel.QueueUnbind(
+		using var channel = _persistentConnection.CreateChannelAsync().GetAwaiter().GetResult();
+		channel.QueueUnbindAsync(
 			queue: _options.QueueName,
 			exchange: _options.ExchangeName,
 			routingKey: eventName,
-			arguments: null);
+			arguments: null).GetAwaiter().GetResult();
 	}
 
 	private async Task OnMessageReceivedAsync(object sender, BasicDeliverEventArgs eventArgs)
 	{
-		var eventName = eventArgs.BasicProperties?.Type;
+		var eventName = eventArgs.BasicProperties.Type;
 		if (string.IsNullOrWhiteSpace(eventName))
 		{
 			eventName = eventArgs.RoutingKey;
@@ -281,13 +287,19 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
 		{
 			await ProcessEventAsync(eventName, bodyText).ConfigureAwait(false);
 
-			_consumerChannel?.BasicAck(eventArgs.DeliveryTag, multiple: false);
+			if (_consumerChannel is not null)
+			{
+				await _consumerChannel.BasicAckAsync(eventArgs.DeliveryTag, multiple: false).ConfigureAwait(false);
+			}
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error processing event. Event={EventName}", eventName);
 
-			_consumerChannel?.BasicNack(eventArgs.DeliveryTag, multiple: false, requeue: _options.RequeueOnError);
+			if (_consumerChannel is not null)
+			{
+				await _consumerChannel.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: _options.RequeueOnError).ConfigureAwait(false);
+			}
 		}
 	}
 
@@ -342,4 +354,3 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
 		}
 	}
 }
-

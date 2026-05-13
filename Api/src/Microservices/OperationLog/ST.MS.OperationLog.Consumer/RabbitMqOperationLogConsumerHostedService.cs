@@ -20,7 +20,7 @@ public sealed class RabbitMqOperationLogConsumerHostedService : BackgroundServic
 	private readonly ILogger<RabbitMqOperationLogConsumerHostedService> _logger;
 
 	private IConnection? _connection;
-	private IModel? _channel;
+	private IChannel? _channel;
 	private string? _consumerTag;
 
 	public RabbitMqOperationLogConsumerHostedService(
@@ -33,19 +33,26 @@ public sealed class RabbitMqOperationLogConsumerHostedService : BackgroundServic
 		_logger = logger;
 	}
 
-	protected override Task ExecuteAsync(CancellationToken stoppingToken)
+	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
-		ConnectAndStartConsume();
-		return Task.CompletedTask;
+		await ConnectAndStartConsumeAsync(stoppingToken).ConfigureAwait(false);
+
+		try
+		{
+			await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+		{
+		}
 	}
 
-	public override Task StopAsync(CancellationToken cancellationToken)
+	public override async Task StopAsync(CancellationToken cancellationToken)
 	{
 		try
 		{
 			if (!string.IsNullOrWhiteSpace(_consumerTag) && _channel is { IsOpen: true })
 			{
-				_channel.BasicCancel(_consumerTag);
+				await _channel.BasicCancelAsync(_consumerTag, cancellationToken: cancellationToken).ConfigureAwait(false);
 			}
 		}
 		catch (Exception ex)
@@ -56,10 +63,10 @@ public sealed class RabbitMqOperationLogConsumerHostedService : BackgroundServic
 		try { _channel?.Dispose(); } catch { }
 		try { _connection?.Dispose(); } catch { }
 
-		return base.StopAsync(cancellationToken);
+		await base.StopAsync(cancellationToken).ConfigureAwait(false);
 	}
 
-	private void ConnectAndStartConsume()
+	private async Task ConnectAndStartConsumeAsync(CancellationToken cancellationToken)
 	{
 		var factory = new ConnectionFactory
 		{
@@ -68,26 +75,25 @@ public sealed class RabbitMqOperationLogConsumerHostedService : BackgroundServic
 			UserName = _options.UserName,
 			Password = _options.Password,
 			VirtualHost = _options.VirtualHost,
-			DispatchConsumersAsync = true,
 			AutomaticRecoveryEnabled = true,
 			NetworkRecoveryInterval = TimeSpan.FromSeconds(10),
 		};
 
-		_connection = factory.CreateConnection();
-		_channel = _connection.CreateModel();
+		_connection = await factory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
+		_channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 
-		_channel.ExchangeDeclare(_options.ExchangeName, ExchangeType.Direct, durable: _options.Durable, autoDelete: _options.AutoDelete);
+		await _channel.ExchangeDeclareAsync(_options.ExchangeName, ExchangeType.Direct, durable: _options.Durable, autoDelete: _options.AutoDelete, cancellationToken: cancellationToken).ConfigureAwait(false);
 
 		var queueName = string.IsNullOrWhiteSpace(_options.QueueName) ? "st.operationlog.consumer" : _options.QueueName;
-		_channel.QueueDeclare(queue: queueName, durable: true, exclusive: false, autoDelete: false, arguments: null);
-		_channel.QueueBind(queue: queueName, exchange: _options.ExchangeName, routingKey: _options.RoutingKey);
+		await _channel.QueueDeclareAsync(queue: queueName, durable: true, exclusive: false, autoDelete: false, arguments: null, cancellationToken: cancellationToken).ConfigureAwait(false);
+		await _channel.QueueBindAsync(queue: queueName, exchange: _options.ExchangeName, routingKey: _options.RoutingKey, cancellationToken: cancellationToken).ConfigureAwait(false);
 
-		_channel.BasicQos(0, _options.PrefetchCount, global: false);
+		await _channel.BasicQosAsync(0, _options.PrefetchCount, global: false, cancellationToken: cancellationToken).ConfigureAwait(false);
 
 		var consumer = new AsyncEventingBasicConsumer(_channel);
-		consumer.Received += OnReceivedAsync;
+		consumer.ReceivedAsync += OnReceivedAsync;
 
-		_consumerTag = _channel.BasicConsume(queue: queueName, autoAck: false, consumer: consumer);
+		_consumerTag = await _channel.BasicConsumeAsync(queue: queueName, autoAck: false, consumer: consumer, cancellationToken: cancellationToken).ConfigureAwait(false);
 
 		_logger.LogInformation("OperationLog consumer started. Exchange={Exchange} Queue={Queue} RoutingKey={RoutingKey}",
 			_options.ExchangeName, queueName, _options.RoutingKey);
@@ -101,7 +107,11 @@ public sealed class RabbitMqOperationLogConsumerHostedService : BackgroundServic
 			var entry = JsonSerializer.Deserialize<OperationLogEntry>(bodyText, JsonOptions);
 			if (entry is null)
 			{
-				_channel?.BasicAck(eventArgs.DeliveryTag, false);
+				if (_channel is not null)
+				{
+					await _channel.BasicAckAsync(eventArgs.DeliveryTag, false).ConfigureAwait(false);
+				}
+
 				return;
 			}
 
@@ -132,12 +142,18 @@ public sealed class RabbitMqOperationLogConsumerHostedService : BackgroundServic
 
 			await db.SaveChangesAsync().ConfigureAwait(false);
 
-			_channel?.BasicAck(eventArgs.DeliveryTag, false);
+			if (_channel is not null)
+			{
+				await _channel.BasicAckAsync(eventArgs.DeliveryTag, false).ConfigureAwait(false);
+			}
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Consume operation log failed.");
-			_channel?.BasicNack(eventArgs.DeliveryTag, false, requeue: _options.RequeueOnError);
+			if (_channel is not null)
+			{
+				await _channel.BasicNackAsync(eventArgs.DeliveryTag, false, requeue: _options.RequeueOnError).ConfigureAwait(false);
+			}
 		}
 	}
 }
