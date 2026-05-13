@@ -6,6 +6,5 @@ public interface IRabbitMqPersistentConnection : IDisposable
 
 	bool TryConnect();
 
-	IModel CreateModel();
+	Task<IChannel> CreateChannelAsync(CancellationToken cancellationToken = default);
 }
-
