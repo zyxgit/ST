@@ -14,6 +14,9 @@ Web/cypress/screenshots/
 # 本地环境文件（如 .env.local）
 *.local
 
+# AI 编辑器本地配置（用户私有，不进仓库）
+.claude/settings.local.json
+
 # —— 编辑器 ——
 .vscode/*
 !.vscode/extensions.json
