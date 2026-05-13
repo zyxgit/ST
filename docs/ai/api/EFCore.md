@@ -41,6 +41,32 @@ public sealed class InfraModule : ServiceModule
 - 启动时 `UseSharedWebApi` 末尾会执行 `ExecuteCodeFirstExecutorsAsync()`（见 `ST.Shared.WebApi` 扩展），与 CodeFirst/种子机制配合。
 - 新迁移在 **`*.Infra` 项目** 内通过 `dotnet ef migrations add` 生成，提交到仓库。
 
+### 连接字符串解析（设计时）
+
+设计时工厂继承自 `NpgsqlDesignTimeDbContextFactoryBase<TContext>`，默认通过 `IConfiguration` 按以下优先级获取连接字符串（高覆盖低）：
+
+```
+Environment Variables  ← 最高优先级（Aspire/CI/脚本注入）
+User Secrets           ← Infra 项目的 UserSecretsId
+appsettings.Development.json  ← 启动项目（*.Api）
+appsettings.json       ← 启动项目（*.Api）
+```
+
+底层由 `DatabaseConnectionInfoResolver`(与运行时一致) 处理回退逻辑。
+
+### 本地开发设置
+
+开发人员需要为每个微服务设置连接字符串，**推荐使用 User Secrets**：
+
+```bash
+dotnet user-secrets set "Database:ConnectionString" "Host=localhost;Port=15432;Username=postgres;Password=<密码>;Database=st_identity" --project "Api/src/Microservices/Identity/ST.MS.Identity.Infra"
+dotnet user-secrets set "Database:ConnectionString" "Host=localhost;Port=15432;Username=postgres;Password=<密码>;Database=st_operationlog" --project "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Infra"
+dotnet user-secrets set "Database:ConnectionString" "Host=localhost;Port=15432;Username=postgres;Password=<密码>;Database=st_fileupload" --project "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Infra"
+dotnet user-secrets set "Database:ConnectionString" "Host=localhost;Port=15432;Username=postgres;Password=<密码>;Database=st_test" --project "Api/src/Microservices/Test/ST.MS.Test.Infra"
+```
+
+亦可通过环境变量 `Database__ConnectionString` 设置（适用于 CI/Docker）。
+
 ## 代码示例
 
 设计时工厂（真实仓库中存在 `*DesignTimeDbContextFactory` 模式）用于 EF Tools：
@@ -68,71 +94,4 @@ public sealed class InfraModule : ServiceModule
 ```bash
 dotnet ef migrations add InitFeature --project Api/src/Microservices/Test/ST.MS.Test.Infra --startup-project Api/src/Microservices/Test/ST.MS.Test.Api
 ```
-
-## 迁移管理工具
-
-`Api/tools/` 下提供了一键迁移管理脚本，统一管理所有微服务的 EF Core 迁移：
-
-- **PowerShell**：[`Api/tools/migrate.ps1`](../../../Api/tools/migrate.ps1)
-- **Bash**：[`Api/tools/migrate.sh`](../../../Api/tools/migrate.sh)
-
-### 前置条件
-
-```bash
-dotnet tool install --global dotnet-ef
-```
-
-### 用法
-
-```bash
-# 检查所有服务是否有未迁移的模型变更
-migrate.ps1 check                # PowerShell
-./migrate.sh check               # Bash
-
-# 检查指定服务
-migrate.ps1 check identity
-./migrate.sh check identity
-
-# 列出服务的迁移历史
-migrate.ps1 list fileupload
-./migrate.sh list fileupload
-
-# 新增迁移
-migrate.ps1 add identity AddUserAvatar
-./migrate.sh add identity AddUserAvatar
-
-# 移除最后一条迁移（带确认）
-migrate.ps1 remove test
-./migrate.sh remove test
-
-# 应用所有待处理迁移到数据库
-migrate.ps1 update identity
-./migrate.sh update identity
-
-# 应用到指定迁移
-migrate.ps1 update identity 0003
-./migrate.sh update identity 0003
-
-# 生成 SQL 脚本（输出到 scripts/ 目录）
-migrate.ps1 script identity
-./migrate.sh script identity
-
-# 生成指定范围内的 SQL 脚本
-migrate.ps1 script identity 0001 0003
-./migrate.sh script identity 0001 0003
-
-# 跳过构建步骤（check 不支持，其余命令均支持）
-migrate.ps1 add identity AddUserAvatar --no-build
-./migrate.sh add identity AddUserAvatar --no-build
-```
-
-### 服务注册
-
-脚本从 [`Api/tools/migrations.json`](../../../Api/tools/migrations.json) 读取服务配置。新增微服务时同步在该文件中注册即可。
-
-| 服务 | DbContext | 数据库 |
-|------|-----------|--------|
-| `identity` | `IdentityDbContext` | `st_identity` |
-| `operationlog` | `OperationLogDbContext` | `st_operationlog` |
-| `test` | `AppDbContext` | `st_test` |
-| `fileupload` | `FileUploadDbContext` | `st_fileupload` |
+	

@@ -1,20 +1,13 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Design;
+using ST.Infra.EntityFramework.Npgsql.DesignTime;
 using ST.MS.Test.Infra.DbContext;
-using ST.Shared.Const;
 
 namespace ST.MS.Test.Infra;
 
-public sealed class TestDesignTimeDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
+public sealed class TestDesignTimeDbContextFactory : NpgsqlDesignTimeDbContextFactoryBase<AppDbContext>
 {
-	public AppDbContext CreateDbContext(string[] args)
-	{
-		var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
-		var connectionString = Environment.GetEnvironmentVariable(SettingPrefixContants.Database_ConnectionString_Env)
-			?? throw new InvalidOperationException($"Design-time database connection string is not configured. Set the '{SettingPrefixContants.Database_ConnectionString_Env}' environment variable.");
-
-		optionsBuilder.UseNpgsql(connectionString);
-
-		return new AppDbContext(optionsBuilder.Options);
-	}
+    protected override AppDbContext CreateDbContext(DbContextOptions options, string[] args)
+    {
+        return new AppDbContext(options);
+    }
 }
