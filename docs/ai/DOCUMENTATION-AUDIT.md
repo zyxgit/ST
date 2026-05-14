@@ -26,6 +26,7 @@
 | 文档同步 | 现有规则强调 `docs/ai/**` 等目录，但 GitHub 展示页也会随功能变化而过期 | 将根目录 `README.md` 纳入后续同步检查范围 |
 | 前端介绍 | `Web/README.md` 仍偏 Vite 模板说明 | 后续可改为 Web 子项目专用说明，避免与根 README 重复 |
 | 运行说明 | 部署文档已有后端、Aspire、前端命令，但缺少面向初次访问者的总览 | 根 README 汇总快速开始；后续若加入 Docker Compose/K8s/Helm，应同步部署文档 |
+| Aspire 机密 | AppHost 使用 `builder.AddParameter()` 管理密码，缺少用户机密初始化与修改的说明 | `docs/deploy/README.md` 新增「Aspire 用户机密管理」小节 |
 
 ## 后续新增或调整必须同步的文档
 

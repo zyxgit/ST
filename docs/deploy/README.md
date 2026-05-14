@@ -55,6 +55,31 @@ pnpm dev
 - 共享配置加载顺序与 UserSecrets/环境变量键名约定见 [`../ai/api/ServiceTemplate.md`](../ai/api/ServiceTemplate.md) 与 [`../ai/api/Auth.md`](../ai/api/Auth.md)。
 - 禁止在仓库中保存生产 `Jwt:SigningKey`、数据库连接串、SMTP 密码等；使用环境变量或密钥管理器。
 
+### Aspire 用户机密管理
+
+Aspire AppHost 使用 [`builder.AddParameter()`](../../Api/src/Aspire/ST.Aspire.AppHost/AppHost.cs) 为 Redis、PostgreSQL、RabbitMQ 等容器管理密码。参数值应存储在 .NET 用户机密中，而非 `appsettings.Development.json`，以避免敏感信息被提交到仓库，并防止容器因重启时密码变动而被重建。
+
+**初始化用户机密**（首次运行或克隆后执行一次）：
+
+```bash
+cd Api/src/Aspire/ST.Aspire.AppHost
+aspire secret set Parameters:password <密码值>
+aspire secret set Parameters:pguser <用户名>
+aspire secret set Parameters:rabbitUser <RabbitMQ用户>
+aspire secret set Parameters:rabbitPassword <RabbitMQ密码>
+```
+
+**修改密码**：重新执行 `aspire secret set` 更新对应参数，然后重新创建容器使新密码生效：
+
+```bash
+# 修改后需要删除旧容器
+docker rm -f ST.Aspire.AppHost_cache ST.Aspire.AppHost_postgres ST.Aspire.AppHost_rabbitmq
+# 重新启动 Aspire 即可自动创建使用新密码的容器
+dotnet run --project Api/src/Aspire/ST.Aspire.AppHost/ST.Aspire.AppHost.csproj
+```
+
+**查看当前机密**：用户机密存储在 `%APPDATA%\Microsoft\UserSecrets\<guid>\secrets.json` 中，对应 `.csproj` 中的 `<UserSecretsId>`。
+
 ## AI 注意
 
 - 部署清单、K8s、Helm 等可在此目录下按环境追加子文档；**与 `docs/ai/common/Monorepo.md` 的目录约定不冲突**即可。
