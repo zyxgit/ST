@@ -38,6 +38,7 @@ ST/
 | Test | `Api/src/Microservices/Test` | 示例微服务与分层模板 |
 | Shared | `Api/src/ServiceShared` | 统一异常、认证授权、请求日志、模块化启动、公共 DTO |
 | Infrastructures | `Api/src/Infrastructures` | EF Core、PostgreSQL、Redis、RabbitMQ、Repository、后台任务等 |
+| 迁移工具 | `Api/tools/MigrationHelper.ps1` | 一键检测和生成微服务迁移 |
 
 ## 前端能力
 

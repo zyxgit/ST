@@ -18,7 +18,7 @@
 2. **启动**：`Program.cs` 使用 `AddServiceDefaults` + `AddSharedWebApi(modules)` + `UseSharedWebApi(modules)`。
 3. **异常**：业务 `BusinessException`，领域规则 `DomainException`，不得滥用裸 `Exception`。
 4. **返回**：列表分页使用 **`PagedRequestDto` / `PagedResultDto<T>`**。
-5. **持久化**：EF 变更必须包含 **迁移命令说明** 与 **DbContext** 名称。
+5. **持久化**：EF 变更必须包含 **迁移命令说明** 与 **DbContext** 名称。推荐使用 `Api/tools/MigrationHelper.ps1` 脚本一键生成迁移（见 `docs/ai/api/EFCore.md`）。
 6. **安全**：默认 `[Authorize]`；公开接口显式 `[AllowAnonymous]`。
 7. **操作日志**：写操作（增/删/改）必须标记 `[OperationLog]`；读操作按需标记；下载端点 `RecordResponse = false`。规则优先级：以 `docs/ai/api/【对应域】.md` 中的操作日志表为准。
 8. **文档**：功能或契约变化时，按 [`../common/DocumentationSync.md`](../common/DocumentationSync.md) **补充或新增** `docs/ai/**`（及 `docs/architecture|deploy|database|api` 索引）中的相关 Markdown，**禁止留空文档**。

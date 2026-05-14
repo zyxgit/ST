@@ -41,6 +41,33 @@ public sealed class InfraModule : ServiceModule
 - 启动时 `UseSharedWebApi` 末尾会执行 `ExecuteCodeFirstExecutorsAsync()`（见 `ST.Shared.WebApi` 扩展），与 CodeFirst/种子机制配合。
 - 新迁移在 **`*.Infra` 项目** 内通过 `dotnet ef migrations add` 生成，提交到仓库。
 
+### 使用迁移工具一键检测和生成
+
+为了简化迁移管理，项目提供了 **MigrationHelper.ps1** 脚本，支持：
+- **检测迁移状态**：识别所有或指定微服务中有待生成的迁移
+- **批量生成迁移**：一命令为多个服务生成迁移
+- **自动编号**：无需手动指定迁移名称时自动递增
+
+**快速使用**：
+
+```bash
+cd Api
+
+# 检测所有服务的迁移状态
+.\tools\MigrationHelper.ps1
+
+# 为所有待迁移的服务生成迁移
+.\tools\MigrationHelper.ps1 -Generate
+
+# 为指定服务生成迁移，指定名称
+.\tools\MigrationHelper.ps1 -Generate -Service Identity -Message "AddUserAvatar"
+
+# 为多个服务生成迁移
+.\tools\MigrationHelper.ps1 -Generate -Service Identity,FileUpload
+```
+
+详见 [`Api/tools/README.md`](../../Api/tools/README.md)。
+
 ### 连接字符串解析（设计时）
 
 设计时工厂继承自 `NpgsqlDesignTimeDbContextFactoryBase<TContext>`，默认通过 `IConfiguration` 按以下优先级获取连接字符串（高覆盖低）：
