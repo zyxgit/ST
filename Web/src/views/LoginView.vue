@@ -170,7 +170,7 @@ onUnmounted(() => {
           <n-grid :cols="1" :y-gap="16">
             <n-grid-item>
               <n-form-item label="邮箱" path="email">
-                <n-input v-model:value="formValue.email" placeholder="请输入邮箱">
+                <n-input v-model:value="formValue.email" placeholder="示例账号 test@qq.com">
                   <template #prefix>
                     <n-icon><mail-outline /></n-icon>
                   </template>
@@ -183,7 +183,7 @@ onUnmounted(() => {
                   v-model:value="formValue.password"
                   show-password-on="click"
                   type="password"
-                  placeholder="请输入密码"
+                  placeholder="示例密码 123456"
                 >
                   <template #prefix>
                     <n-icon><lock-closed-outline /></n-icon>
