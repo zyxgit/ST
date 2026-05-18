@@ -21,7 +21,6 @@ ST/
 │   │   ├── Microservices/    # Identity、OperationLog、Test、FileUpload、Gateway
 │   │   ├── ServiceShared/    # 共享 WebApi、Application、Domain、公共原语
 │   │   └── ST.slnx           # 后端解决方案入口
-│   └── tools/                # 数据库迁移辅助脚本
 ├── Web/                      # Vue 3 + TypeScript 管理端
 └── docs/                     # 架构、API、数据库、部署、AI 协作规范
 ```
@@ -38,7 +37,6 @@ ST/
 | Test | `Api/src/Microservices/Test` | 示例微服务与分层模板 |
 | Shared | `Api/src/ServiceShared` | 统一异常、认证授权、请求日志、模块化启动、公共 DTO |
 | Infrastructures | `Api/src/Infrastructures` | EF Core、PostgreSQL、Redis、RabbitMQ、Repository、后台任务等 |
-| 迁移工具 | `Api/tools/MigrationHelper.ps1` | 一键检测和生成微服务迁移 |
 
 ## 前端能力
 
