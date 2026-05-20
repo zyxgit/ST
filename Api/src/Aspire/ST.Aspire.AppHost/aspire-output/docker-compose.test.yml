@@ -1,0 +1,167 @@
+services:
+  # 对外暴露网关端口（可按需改为 0.0.0.0:8080:8080）
+  st-gateway:
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      DOTNET_ENVIRONMENT: "Production"
+      # 容器内服务发现：必须用 compose service name，不能用 localhost
+      DownstreamServices__Identity__Address: "http://st-ms-identity-api:8080"
+      DownstreamServices__OperationLog__Address: "http://st-ms-operationlog-api:8080"
+      DownstreamServices__Test__Address: "http://st-ms-test-api:8080"
+      DownstreamServices__FileUpload__Address: "http://st-ms-fileupload-api:8080"
+
+      # 反向代理场景建议配置；如有固定反代 IP，建议改 KnownProxies 而非 TrustAll
+      ForwardedHeaders__TrustAll: "true"
+
+  # 宿主机访问 PostgreSQL / Redis
+  postgres:
+    ports:
+      - "127.0.0.1:15432:5432"
+
+  cache:
+    ports:
+      - "127.0.0.1:16379:6379"
+
+  # （可选）宿主机访问 RabbitMQ 管理端
+  rabbitmq:
+    ports:
+      - "127.0.0.1:15672:15672"
+
+  # 方案 B：应用服务默认禁用启动时自动迁移，迁移由独立“migrate profile”服务执行
+  st-ms-identity-api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      DOTNET_ENVIRONMENT: "Production"
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "false"
+
+  st-ms-test-api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      DOTNET_ENVIRONMENT: "Production"
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "false"
+
+  st-ms-fileupload-api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      DOTNET_ENVIRONMENT: "Production"
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "false"
+    # 本地文件存储持久化
+    volumes:
+      - st-fileupload-uploads:/app/uploads
+
+  st-ms-operationlog-api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      DOTNET_ENVIRONMENT: "Production"
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "false"
+
+  st-ms-operationlog-consumer:
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      DOTNET_ENVIRONMENT: "Production"
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "false"
+
+  # ------------------------------
+  # 方案 B：独立迁移服务（按 profile 触发）
+  # 用法：
+  # 1) 先执行以下命令一次：
+  #    docker compose --env-file .env.test -f docker-compose.yaml -f docker-compose.test.yml --profile migrate up migrate-identity migrate-test migrate-fileupload migrate-operationlog
+  # 2) 迁移完成后，正常启动业务服务：
+  #    docker compose --env-file .env.test -f docker-compose.yaml -f docker-compose.test.yml up -d
+  # ------------------------------
+  migrate-identity:
+    image: "${ST_MS_IDENTITY_API_IMAGE}"
+    profiles: ["migrate"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      DOTNET_ENVIRONMENT: "Production"
+      App__IsCodeFirst: "true"
+      App__IsCreateDatabase: "true"
+      App__IsDataSeed: "true"
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Username=${PGUSER};Password=${PASSWORD};Database=st_identity"
+      ConnectionStrings__cache: "cache:6379,password=${PASSWORD}"
+      ConnectionStrings__rabbitmq: "amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672"
+    depends_on:
+      postgres:
+        condition: service_started
+      cache:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    networks:
+      - aspire
+
+  migrate-test:
+    image: "${ST_MS_TEST_API_IMAGE}"
+    profiles: ["migrate"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      DOTNET_ENVIRONMENT: "Production"
+      App__IsCodeFirst: "true"
+      App__IsCreateDatabase: "true"
+      App__IsDataSeed: "true"
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Username=${PGUSER};Password=${PASSWORD};Database=st_test"
+      ConnectionStrings__cache: "cache:6379,password=${PASSWORD}"
+      ConnectionStrings__rabbitmq: "amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672"
+    depends_on:
+      postgres:
+        condition: service_started
+      cache:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    networks:
+      - aspire
+
+  migrate-fileupload:
+    image: "${ST_MS_FILEUPLOAD_API_IMAGE}"
+    profiles: ["migrate"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      DOTNET_ENVIRONMENT: "Production"
+      App__IsCodeFirst: "true"
+      App__IsCreateDatabase: "true"
+      App__IsDataSeed: "true"
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Username=${PGUSER};Password=${PASSWORD};Database=st_fileupload"
+      ConnectionStrings__cache: "cache:6379,password=${PASSWORD}"
+    depends_on:
+      postgres:
+        condition: service_started
+      cache:
+        condition: service_started
+    networks:
+      - aspire
+
+  migrate-operationlog:
+    image: "${ST_MS_OPERATIONLOG_API_IMAGE}"
+    profiles: ["migrate"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      DOTNET_ENVIRONMENT: "Production"
+      App__IsCodeFirst: "true"
+      App__IsCreateDatabase: "true"
+      App__IsDataSeed: "true"
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Username=${PGUSER};Password=${PASSWORD};Database=st_operationlog"
+      ConnectionStrings__cache: "cache:6379,password=${PASSWORD}"
+    depends_on:
+      postgres:
+        condition: service_started
+      cache:
+        condition: service_started
+    networks:
+      - aspire
+
+volumes:
+  st-fileupload-uploads:
