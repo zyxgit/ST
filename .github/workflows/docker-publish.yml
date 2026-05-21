@@ -1,9 +1,16 @@
+# =============================================================================
+# 构建并推送 Docker 镜像到 GitHub Container Registry (GHCR)
+# 触发方式：push main 或手动 workflow_dispatch
+# 构建方式：使用 .NET 10 SDK 内置容器发布（无需 Dockerfile）
+# =============================================================================
 name: Build and Push Docker Images
 
 on:
+  # push main 时自动触发，仅排除 .md 文件变更
   push:
     branches: [main]
     paths-ignore: ['**/*.md']
+  # 支持 GitHub 页面手动触发，可选自定义 tag 后缀
   workflow_dispatch:
     inputs:
       tag_suffix:
@@ -17,6 +24,7 @@ env:
 
 jobs:
   build-and-push:
+    # 6 个微服务并行构建互不影响
     strategy:
       fail-fast: false
       matrix:
@@ -37,13 +45,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 拉取仓库代码
       - uses: actions/checkout@v4
 
+      # 安装 .NET 10 SDK（包含内置容器发布能力）
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      # 缓存 NuGet 包，加速后续构建
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
@@ -52,6 +63,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
+      # 登录 GHCR，使用 GITHUB_TOKEN（自动有当前仓库的 packages 读写权限）
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -59,6 +71,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # 用 dotnet publish 构建 + 推送容器镜像
+      # 镜像标签格式：{run_number}-{run_attempt}-{sha_prefix}，如 3-1-a1b2c3d
       - name: Build and push container
         shell: bash
         env:
@@ -67,15 +81,10 @@ jobs:
           TAG="${{ github.run_number }}-${{ github.run_attempt }}${CUSTOM_TAG_SUFFIX:+-$CUSTOM_TAG_SUFFIX}"
           SHA_TAG="${{ github.sha }}"
           REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          IMAGE="${REPO_LC}/${{ matrix.service.name }}"
 
           dotnet publish "${{ matrix.service.project }}" \
             -c Release \
             -p:ContainerRegistry=${{ env.REGISTRY }} \
-            -p:ContainerRepository="${IMAGE}" \
-            -p:ContainerImageTag="${TAG}" \
+            -p:ContainerRepository="${REPO_LC}/${{ matrix.service.name }}" \
+            -p:ContainerImageTag="${TAG}-${SHA_TAG}" \
             --os linux --arch x64
-
-          docker tag "${{ env.REGISTRY }}/${IMAGE}:${TAG}" \
-                     "${{ env.REGISTRY }}/${IMAGE}:${SHA_TAG}"
-          docker push "${{ env.REGISTRY }}/${IMAGE}:${SHA_TAG}"
