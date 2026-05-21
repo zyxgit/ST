@@ -144,4 +144,5 @@ jobs:
             -p:ContainerRepository="${IMAGE_REPO}" \
             -p:ContainerImageTags="${IMMUTABLE_TAG}%3B${BASE_TAG}%3Bsha-${SHORT_SHA}" \
             -p:ContainerLabel="org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
-            -p:ContainerPush=true
+            -p:ContainerPush=true \
+            -p:EnableSdkContainerSupport=true
