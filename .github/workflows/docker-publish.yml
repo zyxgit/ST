@@ -1,0 +1,82 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches: [main]
+    paths: ['Api/src/**']
+    paths-ignore: ['**/*.md']
+  workflow_dispatch:
+    inputs:
+      tag_suffix:
+        description: Custom tag suffix (e.g. rc1)
+        required: false
+        default: ''
+
+env:
+  DOTNET_VERSION: 10.0.x
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: gateway
+            project: Api/src/Microservices/Gateway/ST.Gateway/ST.Gateway.csproj
+          - name: identity-api
+            project: Api/src/Microservices/Identity/ST.MS.Identity.Api/ST.MS.Identity.Api.csproj
+          - name: operationlog-api
+            project: Api/src/Microservices/OperationLog/ST.MS.OperationLog.Api/ST.MS.OperationLog.Api.csproj
+          - name: operationlog-consumer
+            project: Api/src/Microservices/OperationLog/ST.MS.OperationLog.Consumer/ST.MS.OperationLog.Consumer.csproj
+          - name: fileupload-api
+            project: Api/src/Microservices/FileUpload/ST.MS.FileUpload.Api/ST.MS.FileUpload.Api.csproj
+          - name: test-api
+            project: Api/src/Microservices/Test/ST.MS.Test.Api/ST.MS.Test.Api.csproj
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Api/src/**/packages.lock.json', 'Api/src/nuget.config') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push container
+        shell: bash
+        env:
+          CUSTOM_TAG_SUFFIX: ${{ inputs.tag_suffix }}
+        run: |
+          TAG="${{ github.run_number }}-${{ github.run_attempt }}${CUSTOM_TAG_SUFFIX:+-$CUSTOM_TAG_SUFFIX}"
+          SHA_TAG="${{ github.sha }}"
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="${REPO_LC}/${{ matrix.service.name }}"
+
+          dotnet publish "${{ matrix.service.project }}" \
+            -c Release \
+            -p:ContainerRegistry=${{ env.REGISTRY }} \
+            -p:ContainerRepository="${IMAGE}" \
+            -p:ContainerImageTag="${TAG}" \
+            --os linux --arch x64
+
+          docker tag "${{ env.REGISTRY }}/${IMAGE}:${TAG}" \
+                     "${{ env.REGISTRY }}/${IMAGE}:${SHA_TAG}"
+          docker push "${{ env.REGISTRY }}/${IMAGE}:${SHA_TAG}"

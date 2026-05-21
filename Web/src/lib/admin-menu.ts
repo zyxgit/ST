@@ -36,6 +36,7 @@ export function normalizePath(path?: string | null) {
 }
 
 export function buildTopSections(menuTree: MenuTreeNode[]): AdminSection[] {
+  if (!Array.isArray(menuTree)) return []
   return [
     { key: '/dashboard', title: '工作台', path: '/dashboard', code: 'dashboard' },
     ...menuTree.filter(isVisibleMenu).map((menu) => ({

@@ -41,7 +41,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     const [user, menus] = await Promise.all([getCurrentUser(), getCurrentUserMenuTree()])
     currentUser.value = user
-    menuTree.value = menus
+    menuTree.value = Array.isArray(menus) ? menus : []
     bootstrapFailed.value = false
     initialized.value = true
   }
