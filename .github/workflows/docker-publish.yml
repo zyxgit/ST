@@ -137,10 +137,4 @@ jobs:
           # 1) IMMUTABLE_TAG：精确可回滚
           # 2) BASE_TAG：同次构建聚合标识
           # 3) sha-<short_sha>：按提交定位
-          dotnet publish "${{ matrix.service.project }}" \
-            -c Release \
-            --nologo \
-            --os linux --arch x64 \
-            -p:ContainerRegistry=${{ env.REGISTRY }} \
-            -p:ContainerRepository="${IMAGE_REPO}" \
-            -p:ContainerImageTags="${IMMUTABLE_TAG},${BASE_TAG},sha-${SHORT_SHA}"
+          dotnet publish "${{ matrix.service.project }}" -c Release --nologo --os linux --arch x64 -p:ContainerRegistry=${{ env.REGISTRY }} -p:ContainerRepository="${IMAGE_REPO}" -p:ContainerImageTags="${IMMUTABLE_TAG};${BASE_TAG};sha-${SHORT_SHA}"
