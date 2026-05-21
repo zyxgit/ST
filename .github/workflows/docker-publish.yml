@@ -51,7 +51,7 @@ jobs:
           # 提取短 SHA 用于不可变追踪
           SHORT_SHA="${GITHUB_SHA::7}"
           # GHCR 仓库名建议小写
-          REPO_LC="$(echo \"${GITHUB_REPOSITORY}\" | tr '[:upper:]' '[:lower:]')"
+          REPO_LC="$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
 
           echo "date_tag=${DATE_TAG}" >> "$GITHUB_OUTPUT"
           echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
@@ -143,4 +143,4 @@ jobs:
             --os linux --arch x64 \
             -p:ContainerRegistry=${{ env.REGISTRY }} \
             -p:ContainerRepository="${IMAGE_REPO}" \
-            -p:ContainerImageTags="${IMMUTABLE_TAG};${BASE_TAG};sha-${SHORT_SHA}"
+            -p:ContainerImageTags="${IMMUTABLE_TAG},${BASE_TAG},sha-${SHORT_SHA}"
