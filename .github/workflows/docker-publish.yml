@@ -115,6 +115,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # 构建并推送容器镜像（每个矩阵服务执行一次）
+      # 方案：dotnet publish 输出文件 + Docker CLI 构建推送（最成熟的 CI 方案）
       - name: Build and push container
         shell: bash
         env:
@@ -133,16 +134,35 @@ jobs:
           # 不可变 tag：日期+序号+短 SHA（示例：2026.05.21-128-a1b2c3d）
           IMMUTABLE_TAG="${BASE_TAG}-${SHORT_SHA}"
 
-          echo "Publishing ${IMAGE_REPO}:${IMMUTABLE_TAG}"
+          echo "Building ${IMAGE_REPO}:${IMMUTABLE_TAG}"
 
-          # 同时推送三类 tag：
-          # 1) IMMUTABLE_TAG：精确可回滚
-          # 2) BASE_TAG：同次构建聚合标识
-          # 3) sha-<short_sha>：按提交定位
-          dotnet publish "${{ matrix.service.project }}" -c Release --nologo --os linux --arch x64 \
-            -p:ContainerRegistry=${{ env.REGISTRY }} \
-            -p:ContainerRepository="${IMAGE_REPO}" \
-            -p:ContainerImageTags="${IMMUTABLE_TAG}%3B${BASE_TAG}%3Bsha-${SHORT_SHA}" \
-            -p:ContainerLabel="org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
-            -p:ContainerPush=true \
-            -p:EnableSdkContainerSupport=true
+          # Step 1: 普通 publish 输出文件
+          OUTPUT_DIR="publish-output/${{ matrix.service.name }}"
+          dotnet publish "${{ matrix.service.project }}" -c Release -o "${OUTPUT_DIR}" --nologo
+
+          # Step 2: 从 .csproj 文件名推断入口 DLL 名
+          PROJECT_FILE="${{ matrix.service.project }}"
+          DLL_NAME="$(basename "${PROJECT_FILE}" .csproj).dll"
+
+          # Step 3: 生成最小 Dockerfile
+          cat > "${OUTPUT_DIR}/Dockerfile" << DOCKERFILE
+          FROM mcr.microsoft.com/dotnet/aspnet:10.0
+          WORKDIR /app
+          COPY . .
+          ENTRYPOINT ["dotnet", "${DLL_NAME}"]
+          DOCKERFILE
+
+          # Step 4: 构建镜像
+          docker build \
+            --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            -t "${IMAGE_REPO}:${IMMUTABLE_TAG}" \
+            -t "${IMAGE_REPO}:${BASE_TAG}" \
+            -t "${IMAGE_REPO}:sha-${SHORT_SHA}" \
+            "${OUTPUT_DIR}"
+
+          # Step 5: 推送所有 tag
+          docker push "${IMAGE_REPO}:${IMMUTABLE_TAG}"
+          docker push "${IMAGE_REPO}:${BASE_TAG}"
+          docker push "${IMAGE_REPO}:sha-${SHORT_SHA}"
+
+          echo "Pushed ${IMAGE_REPO}:${IMMUTABLE_TAG}"
