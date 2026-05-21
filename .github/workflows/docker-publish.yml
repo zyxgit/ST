@@ -1,16 +1,21 @@
 # =============================================================================
-# 构建并推送 Docker 镜像到 GitHub Container Registry (GHCR)
-# 触发方式：push main 或手动 workflow_dispatch
-# 构建方式：使用 .NET 10 SDK 内置容器发布（无需 Dockerfile）
+# 构建并推送 .NET 微服务镜像到 GHCR
+# 说明：
+# 1) 使用 dotnet publish 内置容器能力（不依赖 Dockerfile）
+# 2) tag 策略：日期+序号，并附加短 SHA，便于追踪与回滚
+# 3) 支持 main 自动触发 + 手动触发（可选 tag_suffix）
 # =============================================================================
 name: Build and Push Docker Images
 
 on:
-  # push main 时自动触发，仅排除 .md 文件变更
+  # 仅在后端代码或当前工作流变更时触发，避免无效构建
   push:
     branches: [main]
-    paths-ignore: ['**/*.md']
-  # 支持 GitHub 页面手动触发，可选自定义 tag 后缀
+    paths:
+      - 'Api/**'
+      - '.github/workflows/docker-publish.yml'
+
+  # 手动触发时可追加后缀（如 rc1 / hotfix）
   workflow_dispatch:
     inputs:
       tag_suffix:
@@ -18,14 +23,46 @@ on:
         required: false
         default: ''
 
+# 显式声明最小权限：读取代码 + 推送 packages 到 GHCR
+permissions:
+  contents: read
+  packages: write
+
 env:
+  # 与项目约定一致的 SDK 版本
   DOTNET_VERSION: 10.0.x
   REGISTRY: ghcr.io
 
 jobs:
+  # 预处理任务：统一生成元信息，避免矩阵任务重复计算
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      date_tag: ${{ steps.meta.outputs.date_tag }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+      repo_lc: ${{ steps.meta.outputs.repo_lc }}
+    steps:
+      - name: Generate shared metadata
+        id: meta
+        shell: bash
+        run: |
+          # 统一用 UTC 日期，保证跨时区一致
+          DATE_TAG="$(date -u +%Y.%m.%d)"
+          # 提取短 SHA 用于不可变追踪
+          SHORT_SHA="${GITHUB_SHA::7}"
+          # GHCR 仓库名建议小写
+          REPO_LC="$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+
+          echo "date_tag=${DATE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "repo_lc=${REPO_LC}" >> "$GITHUB_OUTPUT"
+
+  # 矩阵并行构建并推送各微服务镜像
   build-and-push:
-    # 6 个微服务并行构建互不影响
+    needs: prepare
+    runs-on: ubuntu-latest
     strategy:
+      # 单个服务失败不影响其它服务继续构建
       fail-fast: false
       matrix:
         service:
@@ -42,28 +79,32 @@ jobs:
           - name: test-api
             project: Api/src/Microservices/Test/ST.MS.Test.Api/ST.MS.Test.Api.csproj
 
-    runs-on: ubuntu-latest
-
     steps:
-      # 拉取仓库代码
+      # 拉取代码
       - uses: actions/checkout@v4
 
-      # 安装 .NET 10 SDK（包含内置容器发布能力）
+      # 安装 .NET SDK
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      # 缓存 NuGet 包，加速后续构建
+      # 缓存 NuGet 包，加速 restore/publish
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('Api/src/**/packages.lock.json', 'Api/src/nuget.config') }}
+          key: >-
+            ${{ runner.os }}-nuget-
+            ${{ hashFiles('Api/src/**/packages.lock.json', 'Api/src/**/Directory.Packages.props', 'Api/src/**/nuget.config', 'Api/src/**/global.json') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      # 登录 GHCR，使用 GITHUB_TOKEN（自动有当前仓库的 packages 读写权限）
+      # 显式 restore，减少 publish 阶段波动
+      - name: Restore solution
+        run: dotnet restore Api/src/ST.slnx --nologo
+
+      # 使用 GitHub Token 登录 GHCR
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -71,20 +112,35 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 用 dotnet publish 构建 + 推送容器镜像
-      # 镜像标签格式：{run_number}-{run_attempt}-{sha_prefix}，如 3-1-a1b2c3d
+      # 构建并推送容器镜像（每个矩阵服务执行一次）
       - name: Build and push container
         shell: bash
         env:
           CUSTOM_TAG_SUFFIX: ${{ inputs.tag_suffix }}
+          DATE_TAG: ${{ needs.prepare.outputs.date_tag }}
+          SHORT_SHA: ${{ needs.prepare.outputs.short_sha }}
+          REPO_LC: ${{ needs.prepare.outputs.repo_lc }}
         run: |
-          TAG="${{ github.run_number }}-${{ github.run_attempt }}${CUSTOM_TAG_SUFFIX:+-$CUSTOM_TAG_SUFFIX}"
-          SHA_TAG="${{ github.sha }}"
-          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          # 基础 tag：日期+运行序号（示例：2026.05.21-128）
+          BASE_TAG="${DATE_TAG}-${{ github.run_number }}"
+          if [[ -n "${CUSTOM_TAG_SUFFIX}" ]]; then
+            BASE_TAG="${BASE_TAG}-${CUSTOM_TAG_SUFFIX}"
+          fi
 
+          IMAGE_REPO="${REPO_LC}/${{ matrix.service.name }}"
+          # 不可变 tag：日期+序号+短 SHA（示例：2026.05.21-128-a1b2c3d）
+          IMMUTABLE_TAG="${BASE_TAG}-${SHORT_SHA}"
+
+          echo "Publishing ${IMAGE_REPO}:${IMMUTABLE_TAG}"
+
+          # 同时推送三类 tag：
+          # 1) IMMUTABLE_TAG：精确可回滚
+          # 2) BASE_TAG：同次构建聚合标识
+          # 3) sha-<short_sha>：按提交定位
           dotnet publish "${{ matrix.service.project }}" \
             -c Release \
+            --nologo \
+            --os linux --arch x64 \
             -p:ContainerRegistry=${{ env.REGISTRY }} \
-            -p:ContainerRepository="${REPO_LC}/${{ matrix.service.name }}" \
-            -p:ContainerImageTag="${TAG}-${SHA_TAG}" \
-            --os linux --arch x64
+            -p:ContainerRepository="${IMAGE_REPO}" \
+            -p:ContainerImageTags="${IMMUTABLE_TAG},${BASE_TAG},sha-${SHORT_SHA}"
