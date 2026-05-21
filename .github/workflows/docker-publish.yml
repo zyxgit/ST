@@ -130,7 +130,7 @@ jobs:
             BASE_TAG="${BASE_TAG}-${CUSTOM_TAG_SUFFIX}"
           fi
 
-          IMAGE_REPO="${REPO_LC}/${{ matrix.service.name }}"
+          IMAGE_REPO="${{ env.REGISTRY }}/${REPO_LC}/${{ matrix.service.name }}"
           # 不可变 tag：日期+序号+短 SHA（示例：2026.05.21-128-a1b2c3d）
           IMMUTABLE_TAG="${BASE_TAG}-${SHORT_SHA}"
 
