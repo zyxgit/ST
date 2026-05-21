@@ -29,8 +29,6 @@ permissions:
   packages: write
 
 env:
-  # 提前启用 Node.js 24 运行时，消除 Actions 弃用警告
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   # 与项目约定一致的 SDK 版本
   DOTNET_VERSION: 10.0.x
   REGISTRY: ghcr.io
@@ -143,4 +141,5 @@ jobs:
             -p:ContainerRegistry=${{ env.REGISTRY }} \
             -p:ContainerRepository="${IMAGE_REPO}" \
             -p:ContainerImageTags="${IMMUTABLE_TAG}%3B${BASE_TAG}%3Bsha-${SHORT_SHA}" \
-            -p:ContainerLabel="org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}"
+            -p:ContainerLabel="org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            -p:ContainerPush=true
