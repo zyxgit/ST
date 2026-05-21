@@ -116,6 +116,7 @@ jobs:
       - name: Build and push container
         shell: bash
         env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true
           CUSTOM_TAG_SUFFIX: ${{ inputs.tag_suffix }}
           DATE_TAG: ${{ needs.prepare.outputs.date_tag }}
           SHORT_SHA: ${{ needs.prepare.outputs.short_sha }}
