@@ -64,13 +64,20 @@ jobs:
           DLL=$(basename "$PROJECT" .csproj).dll
           echo "dll=$DLL" >> "$GITHUB_OUTPUT"
 
-      # Generate Docker tags: branch, PR, semver, short-sha
+      # Date-based sequential tag: 20260522-<run_number>
+      - name: Compute date tag
+        id: datetag
+        run: echo "tag=$(date +'%Y%m%d')-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      # Generate Docker tags: latest, date-seq, branch, PR, semver, short-sha
       - name: Generate Docker metadata
         id: docker_meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.service.name }}
           tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ steps.datetag.outputs.tag }}
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
@@ -114,12 +121,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Compute date tag
+        id: datetag
+        run: echo "tag=$(date +'%Y%m%d')-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
       - name: Generate Docker metadata
         id: docker_meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/st-web
           tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ steps.datetag.outputs.tag }}
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
