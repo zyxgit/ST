@@ -14,9 +14,12 @@ import { usePreferredDark } from '@vueuse/core'
 import { computed, watchEffect } from 'vue'
 
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 
 const appStore = useAppStore()
+const authStore = useAuthStore()
 const preferredDark = usePreferredDark()
+const isBootstrapping = computed(() => !authStore.initialized)
 const theme = computed(() => (appStore.isDark ? darkTheme : null))
 const themeOverrides = computed<GlobalThemeOverrides>(() => ({
   common: {
@@ -59,15 +62,28 @@ watchEffect(() => {
 </script>
 
 <template>
-  <n-config-provider :theme="theme" :theme-overrides="themeOverrides" :locale="zhCN" :date-locale="dateZhCN">
-    <n-loading-bar-provider>
-      <n-dialog-provider>
-        <n-notification-provider>
-          <n-message-provider>
-            <router-view />
-          </n-message-provider>
-        </n-notification-provider>
-      </n-dialog-provider>
-    </n-loading-bar-provider>
-  </n-config-provider>
+  <template v-if="isBootstrapping">
+    <div class="app-loading">
+      <div class="app-loading__brand">ST Admin</div>
+      <div class="app-loading__spinner">
+        <div class="app-loading__ring app-loading__ring--outer"></div>
+        <div class="app-loading__ring app-loading__ring--inner"></div>
+        <div class="app-loading__core"></div>
+      </div>
+      <div class="app-loading__text">正在加载...</div>
+    </div>
+  </template>
+  <template v-else>
+    <n-config-provider :theme="theme" :theme-overrides="themeOverrides" :locale="zhCN" :date-locale="dateZhCN">
+      <n-loading-bar-provider>
+        <n-dialog-provider>
+          <n-notification-provider>
+            <n-message-provider>
+              <router-view />
+            </n-message-provider>
+          </n-notification-provider>
+        </n-dialog-provider>
+      </n-loading-bar-provider>
+    </n-config-provider>
+  </template>
 </template>
