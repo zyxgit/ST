@@ -11,8 +11,9 @@ Web/cypress/screenshots/
 **/__screenshots__/
 *.timestamp-*-*.mjs
 
-# 本地环境文件（如 .env.local）
+# 本地环境文件（如 .env.local、.env.production）
 *.local
+.env.production
 
 # FileUpload 微服务上传目录（运行时生成，不进仓库）
 Api/src/Microservices/FileUpload/ST.MS.FileUpload.Api/uploads/

@@ -1,0 +1,245 @@
+# =============================================================================
+# ST 微服务本地部署（Docker Desktop）
+# 前置条件：
+#   登录 GHCR：    echo $GITHUB_TOKEN | docker login ghcr.io -u <用户名> --password-stdin
+# 用法：
+#   1) 拉取最新镜像 & 启动所有服务：
+#         docker compose --env-file .env.local -f docker-compose.local.yml up -d --pull always
+#   2) 仅启动基础设施（开发时宿主机直连）：
+#         docker compose --env-file .env.local -f docker-compose.local.yml up -d postgres cache rabbitmq
+#   3) 停止：           docker compose --env-file .env.local -f docker-compose.local.yml down
+#   4) 查看日志：       docker compose --env-file .env.local -f docker-compose.local.yml logs -f
+#   5) 如需本地构建（代码修改后测试）：
+#         powershell ./publish-local.ps1
+#         然后将 .env.local 中 IMAGE_TAG=latest 改为 IMAGE_TAG=local
+# =============================================================================
+
+services:
+  # ========================
+  # 基础设施
+  # ========================
+  postgres:
+    image: docker.io/library/postgres:17.6
+    environment:
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PASSWORD}
+    ports:
+      - "0.0.0.0:15432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - st-local
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  cache:
+    image: docker.io/library/redis:8.6
+    command: ["redis-server", "--requirepass", "${PASSWORD}", "--save", "60", "1"]
+    ports:
+      - "0.0.0.0:16379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - st-local
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  rabbitmq:
+    image: docker.io/library/rabbitmq:4.2-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITUSER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITPASSWORD}
+    ports:
+      - "0.0.0.0:5672:5672"
+      - "0.0.0.0:15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - st-local
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Aspire Dashboard（OpenTelemetry 链路/指标/日志）
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/nightly/aspire-dashboard:latest
+    ports:
+      - "0.0.0.0:18888:18888"
+    expose:
+      - "18889"
+    networks:
+      - st-local
+    restart: unless-stopped
+
+  # ========================
+  # 微服务
+  # ========================
+  st-gateway:
+    image: ghcr.io/zyxgit/st/gateway:${IMAGE_TAG:-latest}
+    ports:
+      - "0.0.0.0:8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      DOTNET_ENVIRONMENT: Production
+      HTTP_PORTS: "8080"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_SERVICE_NAME: st-gateway
+      # 下游服务发现（容器内通过 compose service name 访问）
+      DownstreamServices__Identity__Address: http://st-ms-identity-api:8080
+      DownstreamServices__OperationLog__Address: http://st-ms-operationlog-api:8080
+      DownstreamServices__Test__Address: http://st-ms-test-api:8080
+      DownstreamServices__FileUpload__Address: http://st-ms-fileupload-api:8080
+      ForwardedHeaders__TrustAll: "true"
+    depends_on:
+      - st-ms-identity-api
+      - st-ms-operationlog-api
+      - st-ms-test-api
+      - st-ms-fileupload-api
+    networks:
+      - st-local
+    restart: unless-stopped
+
+  st-ms-identity-api:
+    image: ghcr.io/zyxgit/st/identity-api:${IMAGE_TAG:-latest}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      DOTNET_ENVIRONMENT: Production
+      HTTP_PORTS: "8080"
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PASSWORD};Database=st_identity
+      ConnectionStrings__cache: cache:6379,password=${PASSWORD}
+      ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
+      App__IsCodeFirst: "true"
+      App__IsCreateDatabase: "true"
+      App__IsDataSeed: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_SERVICE_NAME: st-ms-identity-api
+    depends_on:
+      postgres:
+        condition: service_started
+      cache:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    networks:
+      - st-local
+    restart: unless-stopped
+
+  st-ms-test-api:
+    image: ghcr.io/zyxgit/st/test-api:${IMAGE_TAG:-latest}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      DOTNET_ENVIRONMENT: Production
+      HTTP_PORTS: "8080"
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PASSWORD};Database=st_test
+      ConnectionStrings__cache: cache:6379,password=${PASSWORD}
+      ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
+      App__IsCodeFirst: "true"
+      App__IsCreateDatabase: "true"
+      App__IsDataSeed: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_SERVICE_NAME: st-ms-test-api
+    depends_on:
+      postgres:
+        condition: service_started
+      cache:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    networks:
+      - st-local
+    restart: unless-stopped
+
+  st-ms-fileupload-api:
+    image: ghcr.io/zyxgit/st/fileupload-api:${IMAGE_TAG:-latest}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      DOTNET_ENVIRONMENT: Production
+      HTTP_PORTS: "8080"
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PASSWORD};Database=st_fileupload
+      ConnectionStrings__cache: cache:6379,password=${PASSWORD}
+      App__IsCodeFirst: "true"
+      App__IsCreateDatabase: "true"
+      App__IsDataSeed: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_SERVICE_NAME: st-ms-fileupload-api
+    volumes:
+      - fileupload-uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_started
+      cache:
+        condition: service_started
+    networks:
+      - st-local
+    restart: unless-stopped
+
+  st-ms-operationlog-api:
+    image: ghcr.io/zyxgit/st/operationlog-api:${IMAGE_TAG:-latest}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      DOTNET_ENVIRONMENT: Production
+      HTTP_PORTS: "8080"
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PASSWORD};Database=st_operationlog
+      ConnectionStrings__cache: cache:6379,password=${PASSWORD}
+      App__IsCodeFirst: "true"
+      App__IsCreateDatabase: "true"
+      App__IsDataSeed: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_SERVICE_NAME: st-ms-operationlog-api
+    depends_on:
+      postgres:
+        condition: service_started
+      cache:
+        condition: service_started
+    networks:
+      - st-local
+    restart: unless-stopped
+
+  st-ms-operationlog-consumer:
+    image: ghcr.io/zyxgit/st/operationlog-consumer:${IMAGE_TAG:-latest}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      DOTNET_ENVIRONMENT: Production
+      HTTP_PORTS: "8080"
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PASSWORD};Database=st_operationlog
+      ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
+      App__IsCodeFirst: "true"
+      App__IsCreateDatabase: "true"
+      App__IsDataSeed: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_SERVICE_NAME: st-ms-operationlog-consumer
+    depends_on:
+      postgres:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    networks:
+      - st-local
+    restart: unless-stopped
+
+networks:
+  st-local:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:
+  fileupload-uploads:
