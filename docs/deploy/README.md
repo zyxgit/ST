@@ -80,6 +80,40 @@ dotnet run --project Api/src/Aspire/ST.Aspire.AppHost/ST.Aspire.AppHost.csproj
 
 **查看当前机密**：用户机密存储在 `%APPDATA%\Microsoft\UserSecrets\<guid>\secrets.json` 中，对应 `.csproj` 中的 `<UserSecretsId>`。
 
+## Docker 镜像构建
+
+CI 自动构建流程见 `.github/workflows/build-images.yml`，推送后自动触发。
+
+### 后端镜像
+
+所有微服务共用 `Api/src/Dockerfile`，通过构建参数选择服务：
+
+```bash
+docker build \
+  -f Api/src/Dockerfile \
+  --build-arg PROJECT=Microservices/Identity/ST.MS.Identity.Api/ST.MS.Identity.Api.csproj \
+  --build-arg DLL=ST.MS.Identity.Api.dll \
+  -t st-ms-identity-api \
+  Api/src/
+```
+
+| 服务 | 项目路径 | 镜像名 |
+|------|----------|--------|
+| Identity API | `Microservices/Identity/ST.MS.Identity.Api` | `st-ms-identity-api` |
+| OperationLog API | `Microservices/OperationLog/ST.MS.OperationLog.Api` | `st-ms-operationlog-api` |
+| OperationLog Consumer | `Microservices/OperationLog/ST.MS.OperationLog.Consumer` | `st-ms-operationlog-consumer` |
+| FileUpload API | `Microservices/FileUpload/ST.MS.FileUpload.Api` | `st-ms-fileupload-api` |
+| Test API | `Microservices/Test/ST.MS.Test.Api` | `st-ms-test-api` |
+| Gateway | `Microservices/Gateway/ST.Gateway` | `st-gateway` |
+
+### 前端镜像
+
+```bash
+docker build -t st-web Web/
+```
+
+Nginx 配置见 `Web/nginx.conf`，含 SPA 路由回退与静态资源缓存。
+
 ## AI 注意
 
 - 部署清单、K8s、Helm 等可在此目录下按环境追加子文档；**与 `docs/ai/common/Monorepo.md` 的目录约定不冲突**即可。
