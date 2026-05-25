@@ -194,6 +194,7 @@ services:
       DownstreamServices__OperationLog__Address: http://st-ms-operationlog-api:8080
       DownstreamServices__Test__Address: http://st-ms-test-api:8080
       DownstreamServices__FileUpload__Address: http://st-ms-fileupload-api:8080
+      Cors__AllowedOrigins__0: http://localhost:280
       SEQ_URL: http://seq:5341
     ports:
       - "${GATEWAY_HOST_PORT:-25000}:8080"

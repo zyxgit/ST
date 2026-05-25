@@ -157,6 +157,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta.outputs.tags }}
           labels: ${{ steps.docker_meta.outputs.labels }}
+          build-args: |
+            VITE_API_BASE_URL=http://localhost:25000
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
