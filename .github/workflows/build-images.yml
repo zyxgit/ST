@@ -209,6 +209,7 @@ jobs:
           RABBITUSER=${{ secrets.RABBITUSER }}
           RABBITPASSWORD=${{ secrets.RABBITPASSWORD }}
           JWTSIGNINGKEY=${{ secrets.JWTSIGNINGKEY }}
+          SEQ_ADMIN_PASSWORD=${{ secrets.SEQ_ADMIN_PASSWORD }}
           POSTGRES_HOST_PORT=${{ vars.POSTGRES_HOST_PORT || '25432' }}
           REDIS_HOST_PORT=${{ vars.REDIS_HOST_PORT || '26379' }}
           RABBITMQ_AMQP_HOST_PORT=${{ vars.RABBITMQ_AMQP_HOST_PORT || '25672' }}

@@ -14,6 +14,7 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
 # ---- Runtime stage ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 ARG DLL
+ENV DLL=${DLL}
 WORKDIR /app
 COPY --from=build /app/publish .
 ENTRYPOINT dotnet "${DLL}"
