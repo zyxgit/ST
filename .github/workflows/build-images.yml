@@ -184,10 +184,9 @@ jobs:
 
       - name: Pull latest images
         run: |
-          docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/st/st-web:latest
-          docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/st/st-gateway:latest
-          docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/st/st-ms-identity-api:latest
-          docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/st/st-ms-operationlog-api:latest
+          for service in st-web st-gateway st-ms-identity-api st-ms-operationlog-api st-ms-operationlog-consumer st-ms-fileupload-api st-ms-test-api; do
+            docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/st/${service}:latest
+          done
 
       - name: Restart containers
         run: |
