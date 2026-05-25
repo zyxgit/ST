@@ -159,3 +159,38 @@ jobs:
           labels: ${{ steps.docker_meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # ──────────────────────────────────────────────
+  # Deploy to local (self-hosted runner)
+  # ──────────────────────────────────────────────
+  deploy-local:
+    name: Deploy to Local
+    needs: [build-backend, build-frontend]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull latest images
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ github.repository }}/st-web:latest
+          docker pull ${{ env.REGISTRY }}/${{ github.repository }}/st-gateway:latest
+          docker pull ${{ env.REGISTRY }}/${{ github.repository }}/st-ms-identity-api:latest
+          docker pull ${{ env.REGISTRY }}/${{ github.repository }}/st-ms-operationlog-api:latest
+
+      - name: Restart containers
+        run: |
+          docker compose -f deploy/docker-compose.yml down
+          docker compose -f deploy/docker-compose.yml up -d
+          docker image prune -f

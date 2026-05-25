@@ -1,0 +1,258 @@
+services:
+  # ──────────────────────────────────────────────
+  # Infrastructure
+  # ──────────────────────────────────────────────
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+    ports:
+      - "${POSTGRES_HOST_PORT:-25432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - st-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    command: redis-server --requirepass ${REDIS_PASSWORD} --save 60 1
+    ports:
+      - "${REDIS_HOST_PORT:-26379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - st-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITUSER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITPASSWORD}
+    ports:
+      - "${RABBITMQ_AMQP_HOST_PORT:-25672}:5672"
+      - "${RABBITMQ_MGMT_HOST_PORT:-25673}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - st-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ──────────────────────────────────────────────
+  # Backend Microservices
+  # ──────────────────────────────────────────────
+  st-ms-identity-api:
+    image: ghcr.io/zyxgit/st/st-ms-identity-api:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_identity
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
+      ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "false"
+      Jwt__SigningKey: ${JWTSIGNINGKEY}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_SERVICE_NAME: st-ms-identity-api
+    ports:
+      - "${IDENTITY_HOST_PORT:-27127}:8080"
+    volumes:
+      - identity-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  st-ms-operationlog-api:
+    image: ghcr.io/zyxgit/st/st-ms-operationlog-api:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_operationlog
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_SERVICE_NAME: st-ms-operationlog-api
+    ports:
+      - "${OPERATIONLOG_HOST_PORT:-21001}:8080"
+    volumes:
+      - operationlog-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  st-ms-operationlog-consumer:
+    image: ghcr.io/zyxgit/st/st-ms-operationlog-consumer:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_operationlog
+      ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_SERVICE_NAME: st-ms-operationlog-consumer
+    volumes:
+      - operationlog-consumer-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  st-ms-fileupload-api:
+    image: ghcr.io/zyxgit/st/st-ms-fileupload-api:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_fileupload
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "false"
+      FileStorage__Type: Local
+      FileStorage__UploadRoot: /app/uploads
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_SERVICE_NAME: st-ms-fileupload-api
+    ports:
+      - "${FILEUPLOAD_HOST_PORT:-27250}:8080"
+    volumes:
+      - fileupload-logs:/app/logs
+      - fileupload-uploads:/app/uploads
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  st-ms-test-api:
+    image: ghcr.io/zyxgit/st/st-ms-test-api:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_test
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
+      ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_SERVICE_NAME: st-ms-test-api
+    ports:
+      - "${TEST_HOST_PORT:-25089}:8080"
+    volumes:
+      - test-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  st-gateway:
+    image: ghcr.io/zyxgit/st/st-gateway:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      DownstreamServices__Identity__Address: http://st-ms-identity-api:8080
+      DownstreamServices__OperationLog__Address: http://st-ms-operationlog-api:8080
+      DownstreamServices__Test__Address: http://st-ms-test-api:8080
+      DownstreamServices__FileUpload__Address: http://st-ms-fileupload-api:8080
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_SERVICE_NAME: st-gateway
+    ports:
+      - "${GATEWAY_HOST_PORT:-25000}:8080"
+    volumes:
+      - gateway-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      - st-ms-identity-api
+      - st-ms-operationlog-api
+      - st-ms-fileupload-api
+      - st-ms-test-api
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # Frontend
+  # ──────────────────────────────────────────────
+  st-web:
+    image: ghcr.io/zyxgit/st/st-web:latest
+    ports:
+      - "${WEB_HOST_PORT:-280}:80"
+    networks:
+      - st-network
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # Aspire Dashboard
+  # Web UI: http://localhost:28088
+  # 结构化日志、链路追踪、指标
+  # ──────────────────────────────────────────────
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/nightly/aspire-dashboard:latest
+    ports:
+      - "${DASHBOARD_HOST_PORT:-28088}:18888"
+    environment:
+      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    networks:
+      - st-network
+    restart: unless-stopped
+
+networks:
+  st-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:
+  identity-logs:
+  operationlog-logs:
+  operationlog-consumer-logs:
+  fileupload-logs:
+  fileupload-uploads:
+  test-logs:
+  gateway-logs:
