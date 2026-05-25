@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ST.Infra.EntityFramework.CodeFirst;
@@ -32,7 +33,8 @@ public static class ServiceCollectionExtensions
 					$"数据库 Provider '{info.Provider}' 不受 Npgsql 支持，请将 'Database:Provider' 设置为 'Npgsql' 或 'PostgreSQL'。");
 			}
 
-			options.UseNpgsql(info.ConnectionString);
+			options.UseNpgsql(info.ConnectionString)
+					.ReplaceService<IMigrationsSqlGenerator, NoForeignKeySqlGenerator>();
 		});
 
 		services.AddEfInfrastructure<TContext>();

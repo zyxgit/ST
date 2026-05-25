@@ -83,7 +83,7 @@ public sealed class InfraModule : ServiceModule
 					  AND ur.role_id = '{AdminRoleId}'::uuid);
 				""",
 				name: "seed-admin-role",
-				order: 200);
+				order: 300);
 			seeds.AddSql(
 				$"""
 				INSERT INTO "public"."users" (
@@ -123,7 +123,7 @@ public sealed class InfraModule : ServiceModule
 					   OR "email" = '{SeedUserEmail}');
 				""",
 				name: "seed-default-user",
-				order: 300);
+				order: 200);
 		});
 	}
 }
