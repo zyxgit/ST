@@ -168,6 +168,7 @@ jobs:
     needs: [build-backend, build-frontend]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: self-hosted
+    environment: "ST Secrets"
     permissions:
       contents: read
       packages: read
