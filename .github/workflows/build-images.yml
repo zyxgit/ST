@@ -183,10 +183,20 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull latest images
+        shell: pwsh
         run: |
-          for service in st-web st-gateway st-ms-identity-api st-ms-operationlog-api st-ms-operationlog-consumer st-ms-fileupload-api st-ms-test-api; do
-            docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/st/${service}:latest
-          done
+          $services = @(
+            "st-web",
+            "st-gateway",
+            "st-ms-identity-api",
+            "st-ms-operationlog-api",
+            "st-ms-operationlog-consumer",
+            "st-ms-fileupload-api",
+            "st-ms-test-api"
+          )
+          foreach ($svc in $services) {
+            docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/st/${svc}:latest
+          }
 
       - name: Restart containers
         run: |
