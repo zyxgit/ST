@@ -71,9 +71,9 @@ services:
       ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_identity
       ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
       ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
-      App__IsCodeFirst: "false"
-      App__IsCreateDatabase: "false"
-      App__IsDataSeed: "false"
+      App__IsCodeFirst: "true"
+      App__IsCreateDatabase: "true"
+      App__IsDataSeed: "true"
       Jwt__SigningKey: ${JWTSIGNINGKEY}
       SEQ_URL: http://seq:5341
     ports:
@@ -138,9 +138,9 @@ services:
       HTTP_PORTS: 8080
       ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_fileupload
       ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
-      App__IsCodeFirst: "false"
-      App__IsCreateDatabase: "false"
-      App__IsDataSeed: "false"
+      App__IsCodeFirst: "true"
+      App__IsCreateDatabase: "true"
+      App__IsDataSeed: "true"
       FileStorage__Type: Local
       FileStorage__UploadRoot: /app/uploads
       SEQ_URL: http://seq:5341
@@ -166,9 +166,9 @@ services:
       ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_test
       ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
       ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
-      App__IsCodeFirst: "false"
-      App__IsCreateDatabase: "false"
-      App__IsDataSeed: "false"
+      App__IsCodeFirst: "true"
+      App__IsCreateDatabase: "true"
+      App__IsDataSeed: "true"
       SEQ_URL: http://seq:5341
     ports:
       - "${TEST_HOST_PORT:-25089}:8080"
