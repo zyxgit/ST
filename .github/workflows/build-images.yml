@@ -198,6 +198,29 @@ jobs:
             docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/st/${svc}:latest
           }
 
+      - name: Create .env file
+        shell: pwsh
+        run: |
+          @'
+          PGUSER=${{ secrets.PGUSER }}
+          PGPASSWORD=${{ secrets.PGPASSWORD }}
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+          RABBITUSER=${{ secrets.RABBITUSER }}
+          RABBITPASSWORD=${{ secrets.RABBITPASSWORD }}
+          JWTSIGNINGKEY=${{ secrets.JWTSIGNINGKEY }}
+          POSTGRES_HOST_PORT=${{ vars.POSTGRES_HOST_PORT || '25432' }}
+          REDIS_HOST_PORT=${{ vars.REDIS_HOST_PORT || '26379' }}
+          RABBITMQ_AMQP_HOST_PORT=${{ vars.RABBITMQ_AMQP_HOST_PORT || '25672' }}
+          RABBITMQ_MGMT_HOST_PORT=${{ vars.RABBITMQ_MGMT_HOST_PORT || '25673' }}
+          IDENTITY_HOST_PORT=${{ vars.IDENTITY_HOST_PORT || '27127' }}
+          OPERATIONLOG_HOST_PORT=${{ vars.OPERATIONLOG_HOST_PORT || '21001' }}
+          FILEUPLOAD_HOST_PORT=${{ vars.FILEUPLOAD_HOST_PORT || '27250' }}
+          TEST_HOST_PORT=${{ vars.TEST_HOST_PORT || '25089' }}
+          GATEWAY_HOST_PORT=${{ vars.GATEWAY_HOST_PORT || '25000' }}
+          WEB_HOST_PORT=${{ vars.WEB_HOST_PORT || '280' }}
+          SEQ_HOST_PORT=${{ vars.SEQ_HOST_PORT || '25341' }}
+          '@ | Out-File -FilePath deploy/.env -Encoding utf8
+
       - name: Restart containers
         run: |
           docker compose -p st -f deploy/docker-compose.yml --env-file deploy/.env down
