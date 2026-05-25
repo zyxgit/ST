@@ -22,7 +22,12 @@ services:
 
   redis:
     image: redis:7
-    command: redis-server --requirepass ${REDIS_PASSWORD} --save 60 1
+    command:
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --save
+      - "60"
+      - "1"
     ports:
       - "${REDIS_HOST_PORT:-26379}:6379"
     volumes:
