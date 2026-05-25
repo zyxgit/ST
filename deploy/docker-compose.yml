@@ -229,6 +229,7 @@ services:
   # ──────────────────────────────────────────────
   # Aspire Dashboard
   # Web UI: http://localhost:28088
+  # 登录密码: .env 中 DASHBOARD_TOKEN
   # 结构化日志、链路追踪、指标
   # ──────────────────────────────────────────────
   aspire-dashboard:
@@ -236,7 +237,8 @@ services:
     ports:
       - "${DASHBOARD_HOST_PORT:-28088}:18888"
     environment:
-      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+      Dashboard__Frontend__BrowserToken: ${DASHBOARD_TOKEN}
+      DASHBOARD__OTLP__AUTHMODE: Unsecured
     networks:
       - st-network
     restart: unless-stopped
