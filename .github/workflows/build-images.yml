@@ -200,6 +200,6 @@ jobs:
 
       - name: Restart containers
         run: |
-          docker compose -f deploy/docker-compose.yml --env-file deploy/.env down
-          docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
+          docker compose -p st -f deploy/docker-compose.yml --env-file deploy/.env down
+          docker compose -p st -f deploy/docker-compose.yml --env-file deploy/.env up -d
           docker image prune -f
