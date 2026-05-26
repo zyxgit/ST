@@ -250,8 +250,6 @@ jobs:
           RABBITUSER=${{ secrets.RABBITUSER }}
           RABBITPASSWORD=${{ secrets.RABBITPASSWORD }}
           JWTSIGNINGKEY=${{ secrets.JWTSIGNINGKEY }}
-          SEQ_ADMIN_PASSWORD=${{ secrets.SEQ_ADMIN_PASSWORD }}
-          SEQ_APIKEY=${{ secrets.SEQ_APIKEY }}
           POSTGRES_HOST_PORT=${{ vars.POSTGRES_HOST_PORT || '25432' }}
           REDIS_HOST_PORT=${{ vars.REDIS_HOST_PORT || '26379' }}
           RABBITMQ_AMQP_HOST_PORT=${{ vars.RABBITMQ_AMQP_HOST_PORT || '25672' }}
@@ -262,7 +260,6 @@ jobs:
           TEST_HOST_PORT=${{ vars.TEST_HOST_PORT || '25089' }}
           GATEWAY_HOST_PORT=${{ vars.GATEWAY_HOST_PORT || '25000' }}
           WEB_HOST_PORT=${{ vars.WEB_HOST_PORT || '280' }}
-          SEQ_HOST_PORT=${{ vars.SEQ_HOST_PORT || '25341' }}
           APP_IS_DATA_SEED=false
           '@ | Out-File -FilePath deploy/.env -Encoding utf8
 

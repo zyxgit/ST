@@ -54,20 +54,6 @@ public static class WebApplicationBuilderExtensions
 
 		var config = NLog.LogManager.Configuration;
 
-		// NLog Seq：读取 SEQ_URL 环境变量，有则将日志推送到 Seq 日志中心
-		if (!string.IsNullOrWhiteSpace(builder.Configuration["SEQ_URL"]))
-		{
-			var seqUrl = builder.Configuration["SEQ_URL"]!;
-			var seqTarget = new SeqHttpTarget(seqUrl)
-			{
-				Layout = "${longdate}|${level:uppercase=true}|${logger}|${message}${onexception:${exception:format=ToString}}",
-				ApiKey = builder.Configuration["SEQ_APIKEY"]
-			};
-			config.AddTarget("seq", seqTarget);
-			config.LoggingRules.Add(new NLog.Config.LoggingRule("*", NLog.LogLevel.Info, seqTarget));
-			LogManager.ReconfigExistingLoggers();
-		}
-
 		// OpenTelemetry：读取 OTEL_EXPORTER_OTLP_ENDPOINT 环境变量，有则启用 OTLP 导出
 		if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
 		{
