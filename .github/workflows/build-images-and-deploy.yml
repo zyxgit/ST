@@ -265,12 +265,12 @@ jobs:
       - name: Install dotnet-ef (local)
         shell: powershell
         run: |
-          dotnet new tool-manifest --force 2>$null
-          dotnet tool install dotnet-ef
+          dotnet tool install dotnet-ef --tool-path ${{ github.workspace }}/.dotnet-tools
 
       - name: Run EF Core migrations
         shell: powershell
         run: |
+          $env:PATH = "${{ github.workspace }}/.dotnet-tools;$env:PATH"
           $dbHost = "localhost"
           $dbPort = "${{ vars.POSTGRES_HOST_PORT || '25432' }}"
           $dbUser = "${{ secrets.PGUSER }}"
