@@ -60,7 +60,8 @@ public static class WebApplicationBuilderExtensions
 			var seqUrl = builder.Configuration["SEQ_URL"]!;
 			var seqTarget = new SeqHttpTarget(seqUrl)
 			{
-				Layout = "${longdate}|${level:uppercase=true}|${logger}|${message}${onexception:${exception:format=ToString}}"
+				Layout = "${longdate}|${level:uppercase=true}|${logger}|${message}${onexception:${exception:format=ToString}}",
+				ApiKey = builder.Configuration["SEQ_APIKEY"]
 			};
 			config.AddTarget("seq", seqTarget);
 			config.LoggingRules.Add(new NLog.Config.LoggingRule("*", NLog.LogLevel.Info, seqTarget));

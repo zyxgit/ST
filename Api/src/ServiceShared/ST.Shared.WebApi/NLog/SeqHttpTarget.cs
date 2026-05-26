@@ -16,6 +16,8 @@ public sealed class SeqHttpTarget : TargetWithLayout
     private readonly HttpClient _httpClient = new();
     private readonly string _baseUrl;
 
+    public string? ApiKey { get; set; }
+
     public SeqHttpTarget(string serverUrl)
     {
         _baseUrl = serverUrl.TrimEnd('/');
@@ -43,8 +45,15 @@ public sealed class SeqHttpTarget : TargetWithLayout
 
         try
         {
-            _httpClient.PostAsJsonAsync($"{_baseUrl}/api/events/raw", payload)
-                .GetAwaiter().GetResult();
+            var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/api/events/raw")
+            {
+                Content = JsonContent.Create(payload)
+            };
+            if (!string.IsNullOrWhiteSpace(ApiKey))
+            {
+                request.Headers.Add("X-Seq-ApiKey", ApiKey);
+            }
+            _httpClient.SendAsync(request).GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {

@@ -76,6 +76,7 @@ services:
       App__IsDataSeed: "${APP_IS_DATA_SEED:-false}"
       Jwt__SigningKey: ${JWTSIGNINGKEY}
       SEQ_URL: http://seq:5341
+      SEQ_APIKEY: ${SEQ_APIKEY}
     ports:
       - "${IDENTITY_HOST_PORT:-27127}:8080"
     volumes:
@@ -101,6 +102,7 @@ services:
       App__IsCodeFirst: "false"
       App__IsCreateDatabase: "false"
       SEQ_URL: http://seq:5341
+      SEQ_APIKEY: ${SEQ_APIKEY}
     ports:
       - "${OPERATIONLOG_HOST_PORT:-21001}:8080"
     volumes:
@@ -122,6 +124,7 @@ services:
       ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_operationlog
       ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
       SEQ_URL: http://seq:5341
+      SEQ_APIKEY: ${SEQ_APIKEY}
     volumes:
       - operationlog-consumer-logs:/app/logs
     networks:
@@ -146,6 +149,7 @@ services:
       FileStorage__Type: Local
       FileStorage__UploadRoot: /app/uploads
       SEQ_URL: http://seq:5341
+      SEQ_APIKEY: ${SEQ_APIKEY}
     ports:
       - "${FILEUPLOAD_HOST_PORT:-27250}:8080"
     volumes:
@@ -172,6 +176,7 @@ services:
       App__IsCreateDatabase: "false"
       App__IsDataSeed: "${APP_IS_DATA_SEED:-false}"
       SEQ_URL: http://seq:5341
+      SEQ_APIKEY: ${SEQ_APIKEY}
     ports:
       - "${TEST_HOST_PORT:-25089}:8080"
     volumes:
@@ -198,6 +203,7 @@ services:
       DownstreamServices__FileUpload__Address: http://st-ms-fileupload-api:8080
       Cors__AllowedOrigins__0: http://localhost:280
       SEQ_URL: http://seq:5341
+      SEQ_APIKEY: ${SEQ_APIKEY}
     ports:
       - "${GATEWAY_HOST_PORT:-25000}:8080"
     volumes:
@@ -235,6 +241,7 @@ services:
     environment:
       ACCEPT_EULA: Y
       SEQ_FIRSTRUN_ADMINPASSWORD: ${SEQ_ADMIN_PASSWORD}
+      SEQ_APIKEY: ${SEQ_APIKEY}
     volumes:
       - seq-data:/data
     networks:
