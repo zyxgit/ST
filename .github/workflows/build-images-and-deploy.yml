@@ -172,6 +172,8 @@ jobs:
     environment: "ST Secrets"
     permissions:
       contents: read
+    env:
+      DOTNET_INSTALL_DIR: ${{ runner.temp }}/dotnet
 
     steps:
       - uses: actions/checkout@v4

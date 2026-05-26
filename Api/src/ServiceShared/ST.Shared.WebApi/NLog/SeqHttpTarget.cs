@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using NLog;
+using NLog.Common;
 using NLog.Targets;
 
 namespace ST.Shared.WebApi.Infra;
@@ -42,11 +43,12 @@ public sealed class SeqHttpTarget : TargetWithLayout
 
         try
         {
-            _httpClient.PostAsJsonAsync($"{_baseUrl}/api/events/raw", payload).ConfigureAwait(false);
+            _httpClient.PostAsJsonAsync($"{_baseUrl}/api/events/raw", payload)
+                .GetAwaiter().GetResult();
         }
-        catch
+        catch (Exception ex)
         {
-            // 推送失败不阻塞应用
+            InternalLogger.Error(ex, "SeqHttpTarget failed to send log event to {Url}", _baseUrl);
         }
     }
 }

@@ -16,6 +16,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Update="NLog\**\*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5">
 			<PrivateAssets>all</PrivateAssets>
