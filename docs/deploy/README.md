@@ -119,23 +119,65 @@ Nginx 配置见 `Web/nginx.conf`，含 SPA 路由回退与静态资源缓存。
 - 部署清单、K8s、Helm 等可在此目录下按环境追加子文档；**与 `docs/ai/common/Monorepo.md` 的目录约定不冲突**即可。
 
 
-## EF Core 迁移与 CI/CD
+## CI/CD 工作流
 
-当前部署链路使用 EF Core 官方推荐命令在部署阶段执行迁移（`dotnet ef database update`）：
+`.github/workflows/build-images-and-deploy.yml` 包含 5 个 Job：
 
-- 在 `.github/workflows/build-images-and-deploy.yml` 中新增独立 `migrate-db` Job（位于 `deploy-local` 之前，且 `deploy-local` 依赖该 Job 成功）。
-- `migrate-db` Job 会：
-  - 使用 `actions/setup-dotnet` 安装 SDK；
-  - 安装 `dotnet-ef` 工具；
-  - 分别对 Identity / OperationLog / FileUpload / Test 执行 `dotnet ef database update`。
-- `deploy/docker-compose.yml` 保持 `App__IsCodeFirst=false` 与 `App__IsCreateDatabase=false`，避免在业务容器启动时自动迁移。
+| Job | 触发条件 | 说明 |
+|-----|----------|------|
+| `test-backend` | push / workflow_dispatch | 单元测试门禁（无测试项目时跳过） |
+| `test-frontend` | push / workflow_dispatch | TypeScript 类型检查 + ESLint / OxLint |
+| `build-backend` | push / workflow_dispatch | 矩阵构建 6 个后端镜像 → GHCR |
+| `build-frontend` | push / workflow_dispatch | 构建 st-web 前端镜像 → GHCR |
+| `deploy-local` | push to develop | 拉取镜像 → 重启容器 → 迁移 → 数据种子 → 健康检查 |
+| `cleanup` | 始终执行（含 schedule） | 清理 GHCR 上旧的 `dev-*` 版本，保留最近 10 个 |
 
-推荐在 GitHub Environment `ST Secrets` 中配置（未配置时使用默认值）：
+> **Schedule 触发（每日 06:00 UTC）**：仅执行 `cleanup` Job，跳过构建与部署。
 
-- `POSTGRES_HOST_PORT`（默认 `25432`）
-- `IDENTITY_DB_NAME`（默认 `st_identity`）
-- `OPERATIONLOG_DB_NAME`（默认 `st_operationlog`）
-- `FILEUPLOAD_DB_NAME`（默认 `st_fileupload`）
-- `TEST_DB_NAME`（默认 `st_test`）
+### 数据种子控制
 
-这样可将迁移行为从应用启动彻底解耦，并通过独立 Job 明确“先迁移后部署”的发布门禁，更适合生产环境。
+各服务通过环境变量 `App__IsDataSeed` 控制是否在启动时执行种子数据：
+
+- `docker-compose.yml` 中引用 `${APP_IS_DATA_SEED:-false}`，由 `.env` 文件控制
+- 生产 CI/CD 流程：初始 `.env` 写入 `APP_IS_DATA_SEED=false` → 容器启动时不 seed → 迁移完成后设为 `true` → 重启业务容器触发 seed
+- 种子数据使用 `WHERE NOT EXISTS` / `AnyAsync` 进行幂等检查，重复执行安全
+- 本地开发可在 `deploy/.env` 中手动设为 `true` 以在 `docker compose up` 时直接 seed
+
+当前已注册种子：
+- **Identity**：权限数据、admin 角色、默认用户（SQL 脚本）
+- **Test**：`TestSampleDataSeed`（示例实体）
+
+### EF Core 迁移
+
+迁移在 `deploy-local` Job 中按以下步骤执行：
+
+1. 启动所有容器（含 PostgreSQL）
+2. 等待 PostgreSQL 就绪（TCP 端口探测）
+3. 检测本地 .NET SDK 缓存 → 未命中时通过 `setup-dotnet` 安装
+4. 安装 `dotnet-ef` 工具到 `--tool-path`
+5. 分别 restore 4 个 Infra 项目 → 对 Identity / OperationLog / FileUpload / Test 执行 `dotnet ef database update`
+6. 迁移完成后启用 seed → 重启业务容器
+
+`deploy/docker-compose.yml` 保持 `App__IsCodeFirst=false` 与 `App__IsCreateDatabase=false`，避免容器启动时自动迁移。
+
+### 健康检查
+
+迁移与 seed 完成后，使用 `Invoke-WebRequest` 轮询网关（`GATEWAY_HOST_PORT`），确认服务已正常启动。
+
+### 清理
+
+`cleanup` Job 通过 `gh api` 查询 GHCR 上每个服务的 `dev-*` 标签版本，超出 10 个旧版本时自动删除，避免镜像仓库膨胀。支持 `workflow_dispatch` 的 `dry_run` 输入进行演练。
+
+### GitHub Environment 变量
+
+推荐在 `ST Secrets` Environment 中配置（未配置时使用默认值）：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `POSTGRES_HOST_PORT` | `25432` | PostgreSQL 宿主机端口 |
+| `IDENTITY_DB_NAME` | `st_identity` | Identity 数据库名 |
+| `OPERATIONLOG_DB_NAME` | `st_operationlog` | OperationLog 数据库名 |
+| `FILEUPLOAD_DB_NAME` | `st_fileupload` | FileUpload 数据库名 |
+| `TEST_DB_NAME` | `st_test` | Test 数据库名 |
+
+这样可将迁移行为从应用启动彻底解耦，并通过明确顺序（迁移 → seed → 健康检查）保证发布可靠性。
