@@ -271,6 +271,7 @@ jobs:
         shell: powershell
         run: |
           $env:PATH = "${{ github.workspace }}/.dotnet-tools;$env:PATH"
+          dotnet restore Api/src/ST.slnx 2>&1 | Out-Null
           $dbHost = "localhost"
           $dbPort = "${{ vars.POSTGRES_HOST_PORT || '25432' }}"
           $dbUser = "${{ secrets.PGUSER }}"
