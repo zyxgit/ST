@@ -173,7 +173,7 @@ jobs:
     permissions:
       contents: read
     env:
-      DOTNET_INSTALL_DIR: ${{ runner.temp }}/dotnet
+      DOTNET_INSTALL_DIR: ${{ github.workspace }}/.dotnet
 
     steps:
       - uses: actions/checkout@v4
