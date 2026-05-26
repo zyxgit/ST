@@ -380,13 +380,13 @@ jobs:
 
       # ── Enable data seeding, restart only app services ──
       - name: Enable data seeding (APP_IS_DATA_SEED=true)
-        shell: pwsh
+        shell: powershell
         run: |
           (Get-Content deploy/.env) -replace 'APP_IS_DATA_SEED=false', 'APP_IS_DATA_SEED=true' | Set-Content deploy/.env
           Write-Host "APP_IS_DATA_SEED set to true"
 
       - name: Restart services to run seeds
-        shell: pwsh
+        shell: powershell
         run: |
           $appServices = @(
             "st-ms-identity-api",
