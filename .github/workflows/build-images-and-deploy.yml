@@ -326,12 +326,16 @@ jobs:
         shell: powershell
         run: |
           $env:PATH = "${{ github.workspace }}/.dotnet-tools;$env:PATH"
-          # 只 restore 需要迁移的 Infra 项目，避免 restore 整个 solution
+          # 只 restore 需要迁移的项目（Infra + Startup），避免 restore 整个 solution
           $restoreProjects = @(
             "Api/src/Microservices/Identity/ST.MS.Identity.Infra/ST.MS.Identity.Infra.csproj",
+            "Api/src/Microservices/Identity/ST.MS.Identity.Api/ST.MS.Identity.Api.csproj",
             "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Infra/ST.MS.OperationLog.Infra.csproj",
+            "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Api/ST.MS.OperationLog.Api.csproj",
             "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Infra/ST.MS.FileUpload.Infra.csproj",
-            "Api/src/Microservices/Test/ST.MS.Test.Infra/ST.MS.Test.Infra.csproj"
+            "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Api/ST.MS.FileUpload.Api.csproj",
+            "Api/src/Microservices/Test/ST.MS.Test.Infra/ST.MS.Test.Infra.csproj",
+            "Api/src/Microservices/Test/ST.MS.Test.Api/ST.MS.Test.Api.csproj"
           )
           $restoreProjects | ForEach-Object {
             dotnet restore $_ 2>&1 | Out-Null
