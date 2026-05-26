@@ -98,6 +98,8 @@ services:
       HTTP_PORTS: 8080
       ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_operationlog
       ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
+      App__IsCodeFirst: "true"
+      App__IsCreateDatabase: "true"
       SEQ_URL: http://seq:5341
     ports:
       - "${OPERATIONLOG_HOST_PORT:-21001}:8080"
