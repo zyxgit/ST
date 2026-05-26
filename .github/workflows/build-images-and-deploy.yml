@@ -185,7 +185,7 @@ jobs:
 
       - name: Install dotnet-ef
         shell: pwsh
-        run: dotnet tool update --global dotnet-ef
+        run: dotnet new tool-manifest --force 2>$null; dotnet tool install dotnet-ef
 
       - name: Run EF Core migrations (dedicated job)
         shell: pwsh
