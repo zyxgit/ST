@@ -256,6 +256,8 @@ jobs:
           }
 
       - name: Setup .NET SDK for EF migrations
+        env:
+          DOTNET_INSTALL_DIR: ${{ github.workspace }}/.dotnet
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
