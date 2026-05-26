@@ -23,6 +23,10 @@ env:
   DOTNET_VERSION: 10.0.x
   NODE_VERSION: 22
 
+concurrency:
+  group: build-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   # ──────────────────────────────────────────────
   # Backend microservices
@@ -158,11 +162,78 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ──────────────────────────────────────────────
+  # DB migration (self-hosted runner)
+  # ──────────────────────────────────────────────
+  migrate-db:
+    name: Migrate Databases
+    needs: [build-backend, build-frontend]
+    if: github.ref == 'refs/heads/develop'
+    runs-on: self-hosted
+    environment: "ST Secrets"
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDK for EF migrations
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install dotnet-ef
+        shell: pwsh
+        run: dotnet tool update --global dotnet-ef
+
+      - name: Run EF Core migrations (dedicated job)
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:PATH;$env:USERPROFILE\.dotnet\tools"
+
+          $dbHost = "localhost"
+          $dbPort = "${{ vars.POSTGRES_HOST_PORT || '25432' }}"
+          $dbUser = "${{ secrets.PGUSER }}"
+          $dbPassword = "${{ secrets.PGPASSWORD }}"
+
+          $migrations = @(
+            @{
+              Name = "Identity"
+              Project = "Api/src/Microservices/Identity/ST.MS.Identity.Infra/ST.MS.Identity.Infra.csproj"
+              Startup = "Api/src/Microservices/Identity/ST.MS.Identity.Api/ST.MS.Identity.Api.csproj"
+              DbName = "${{ vars.IDENTITY_DB_NAME || 'st_identity' }}"
+            },
+            @{
+              Name = "OperationLog"
+              Project = "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Infra/ST.MS.OperationLog.Infra.csproj"
+              Startup = "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Api/ST.MS.OperationLog.Api.csproj"
+              DbName = "${{ vars.OPERATIONLOG_DB_NAME || 'st_operationlog' }}"
+            },
+            @{
+              Name = "FileUpload"
+              Project = "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Infra/ST.MS.FileUpload.Infra.csproj"
+              Startup = "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Api/ST.MS.FileUpload.Api.csproj"
+              DbName = "${{ vars.FILEUPLOAD_DB_NAME || 'st_fileupload' }}"
+            },
+            @{
+              Name = "Test"
+              Project = "Api/src/Microservices/Test/ST.MS.Test.Infra/ST.MS.Test.Infra.csproj"
+              Startup = "Api/src/Microservices/Test/ST.MS.Test.Api/ST.MS.Test.Api.csproj"
+              DbName = "${{ vars.TEST_DB_NAME || 'st_test' }}"
+            }
+          )
+
+          foreach ($m in $migrations) {
+            Write-Host "Applying migration for $($m.Name) on DB=$($m.DbName)..."
+            $env:Database__ConnectionString = "Host=$dbHost;Port=$dbPort;Username=$dbUser;Password=$dbPassword;Database=$($m.DbName)"
+            dotnet ef database update --project $m.Project --startup-project $m.Startup --configuration Release
+          }
+
+  # ──────────────────────────────────────────────
   # Deploy to local (self-hosted runner)
   # ──────────────────────────────────────────────
   deploy-local:
     name: Deploy to Local
-    needs: [build-backend, build-frontend]
+    needs: [build-backend, build-frontend, migrate-db]
     if: github.ref == 'refs/heads/develop'
     runs-on: self-hosted
     environment: "ST Secrets"

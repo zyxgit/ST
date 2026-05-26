@@ -82,7 +82,7 @@ dotnet run --project Api/src/Aspire/ST.Aspire.AppHost/ST.Aspire.AppHost.csproj
 
 ## Docker 镜像构建
 
-CI 自动构建流程见 `.github/workflows/build-images.yml`，推送后自动触发。
+CI/CD 自动构建与本地部署流程见 `.github/workflows/build-images-and-deploy.yml`，推送到 `develop` 后自动触发。
 
 ### 后端镜像
 
@@ -117,3 +117,25 @@ Nginx 配置见 `Web/nginx.conf`，含 SPA 路由回退与静态资源缓存。
 ## AI 注意
 
 - 部署清单、K8s、Helm 等可在此目录下按环境追加子文档；**与 `docs/ai/common/Monorepo.md` 的目录约定不冲突**即可。
+
+
+## EF Core 迁移与 CI/CD
+
+当前部署链路使用 EF Core 官方推荐命令在部署阶段执行迁移（`dotnet ef database update`）：
+
+- 在 `.github/workflows/build-images-and-deploy.yml` 中新增独立 `migrate-db` Job（位于 `deploy-local` 之前，且 `deploy-local` 依赖该 Job 成功）。
+- `migrate-db` Job 会：
+  - 使用 `actions/setup-dotnet` 安装 SDK；
+  - 安装 `dotnet-ef` 工具；
+  - 分别对 Identity / OperationLog / FileUpload / Test 执行 `dotnet ef database update`。
+- `deploy/docker-compose.yml` 保持 `App__IsCodeFirst=false` 与 `App__IsCreateDatabase=false`，避免在业务容器启动时自动迁移。
+
+推荐在 GitHub Environment `ST Secrets` 中配置（未配置时使用默认值）：
+
+- `POSTGRES_HOST_PORT`（默认 `25432`）
+- `IDENTITY_DB_NAME`（默认 `st_identity`）
+- `OPERATIONLOG_DB_NAME`（默认 `st_operationlog`）
+- `FILEUPLOAD_DB_NAME`（默认 `st_fileupload`）
+- `TEST_DB_NAME`（默认 `st_test`）
+
+这样可将迁移行为从应用启动彻底解耦，并通过独立 Job 明确“先迁移后部署”的发布门禁，更适合生产环境。
