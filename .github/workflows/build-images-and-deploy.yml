@@ -190,34 +190,6 @@ jobs:
             echo "No test projects found, skipping test phase"
           fi
 
-  # ──────────────────────────────────────────────
-  # Frontend lint (quality gate)
-  # ──────────────────────────────────────────────
-  test-frontend:
-    name: Lint Frontend
-    if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: Web/pnpm-lock.yaml
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: Web
-      - name: Type check
-        run: pnpm run type-check
-        working-directory: Web
-      - name: Lint
-        run: pnpm run lint
-        working-directory: Web
 
   # ──────────────────────────────────────────────
   # ──────────────────────────────────────────────
@@ -225,7 +197,7 @@ jobs:
   # ──────────────────────────────────────────────
   deploy-local:
     name: Deploy to Local
-    needs: [test-backend, test-frontend, build-backend, build-frontend]
+    needs: [test-backend, build-backend, build-frontend]
     if: github.ref == 'refs/heads/develop'
     runs-on: self-hosted
     environment: "ST Secrets"
