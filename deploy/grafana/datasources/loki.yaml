@@ -1,0 +1,21 @@
+# Grafana 数据源预置 — Loki
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: true
+    editable: false
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - name: TraceID
+          matcherRegex: "TraceId[= ]([\\da-f-]+)"
+          url: ""
+    # 二阶段解除注释：对接 Tempo trace 联动
+    #   - name: TraceID
+    #     matcherRegex: "TraceId[= ]([\\da-f-]+)"
+    #     url: '$${__value.raw}'
+    #     datasourceUid: tempo

@@ -10,7 +10,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NLog;
 using NLog.Web;
-using ST.Shared.WebApi.Infra;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -54,20 +53,8 @@ public static class WebApplicationBuilderExtensions
 
 		var config = NLog.LogManager.Configuration;
 
-		// NLog Seq：读取 SEQ_URL 环境变量，有则将日志推送到 Seq 日志中心
-		if (!string.IsNullOrWhiteSpace(builder.Configuration["SEQ_URL"]))
-		{
-			var seqUrl = builder.Configuration["SEQ_URL"]!;
-			var seqTarget = new SeqHttpTarget(seqUrl)
-			{
-				Layout = "${longdate}|${level:uppercase=true}|${logger}|${message}${onexception:${exception:format=ToString}}"
-			};
-			config.AddTarget("seq", seqTarget);
-			config.LoggingRules.Add(new NLog.Config.LoggingRule("*", NLog.LogLevel.Info, seqTarget));
-			LogManager.ReconfigExistingLoggers();
-		}
-
-		// OpenTelemetry：读取 OTEL_EXPORTER_OTLP_ENDPOINT 环境变量，有则启用 OTLP 导出
+		// OpenTelemetry LoggerProvider 被 ClearProviders 清除后重新注册（仅 logging），
+		// 让 ILogger 日志同时走 NLog + OTLP。Metrics/Tracing/UseOtlpExporter 由 ServiceDefaults 处理。
 		if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
 		{
 			builder.Logging.AddOpenTelemetry(logging =>
@@ -75,21 +62,6 @@ public static class WebApplicationBuilderExtensions
 				logging.IncludeFormattedMessage = true;
 				logging.IncludeScopes = true;
 			});
-
-			builder.Services.AddOpenTelemetry()
-				.WithMetrics(metrics =>
-				{
-					metrics.AddAspNetCoreInstrumentation()
-						.AddHttpClientInstrumentation()
-						.AddRuntimeInstrumentation();
-				})
-				.WithTracing(tracing =>
-				{
-					tracing.AddSource(builder.Environment.ApplicationName)
-						.AddAspNetCoreInstrumentation()
-						.AddHttpClientInstrumentation();
-				})
-				.UseOtlpExporter();
 		}
 
 		// OperationLog：默认注册 No-Op Sink + Dispatcher（避免未启用落库实现时启动失败）

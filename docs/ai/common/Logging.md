@@ -50,3 +50,5 @@ _logger.LogInformation("User {UserId} signed in from {Ip}", userId, ip);
 ## AI 注意事项
 
 - 新增中间件时，确保 **不重复记录 body** 导致日志膨胀；若参考 `RequestLoggingMiddleware`，注意 PII 与大小限制（参阅 `docs/ai/common/Architecture.md` 风险说明）。
+- **OTLP 导出**已在 `AddSharedWebApi` 中条件启用：设置 `OTEL_EXPORTER_OTLP_ENDPOINT` 环境变量后自动加载 OpenTelemetry LoggerProvider（与 NLog 并存；NLog 写文件/控制台，OTel 写 OTLP）。
+- 可观测性基础设施（Alloy → Loki → Grafana）部署与验证见 [`Observability.md`](./Observability.md)。

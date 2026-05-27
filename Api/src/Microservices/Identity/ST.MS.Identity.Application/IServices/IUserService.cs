@@ -52,6 +52,8 @@ public interface IUserService : IAppService
 
 	Task ChangeEmailAsync(ChangeEmailInputDto input);
 
+	Task ChangePasswordAsync(ChangePasswordInputDto input);
+
 	Task ChangeUserStatusAsync(Guid id, ChangeUserStatusInputDto input);
 
 	Task ResetPasswordAsync(Guid id, ResetUserPasswordInputDto input);

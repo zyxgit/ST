@@ -19,7 +19,7 @@ export const useAppStore = defineStore('app', () => {
   const collapsed = useStorage('st-admin-collapsed', false)
   const themeMode = useStorage<ThemeMode>('st-admin-theme-mode', 'light')
   const primaryColor = useStorage('st-admin-primary-color', '#0f766e')
-  const navigationMode = useStorage<NavigationMode>('st-admin-navigation-mode', 'mix')
+  const navigationMode = useStorage<NavigationMode>('st-admin-navigation-mode', 'side')
   const contentWidth = useStorage<ContentWidthMode>('st-admin-content-width', 'fluid')
   const fixedHeader = useStorage('st-admin-fixed-header', true)
   const fixedSidebar = useStorage('st-admin-fixed-sidebar', true)

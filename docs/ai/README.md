@@ -6,7 +6,7 @@
 
 | 分区 | 路径 | 用途 |
 |------|------|------|
-| 通用 | [`common/`](./common/) | Git、Monorepo、命名、日志、缓存、多租户预留、Prompt、**[功能迭代文档同步](./common/DocumentationSync.md)** |
+| 通用 | [`common/`](./common/) | Git、Monorepo、命名、日志、缓存、多租户预留、Prompt、可观测性、**[功能迭代文档同步](./common/DocumentationSync.md)** |
 | 后端 | [`api/`](./api/) | DDD 分层、EF Core、JWT、网关、Hangfire、DTO/异常/Result |
 | 前端 | [`web/`](./web/) | Vue3、Pinia、路由权限、请求封装、组件与样式 |
 | AI 规则 | [`AI-RULES.md`](./AI-RULES.md) | **AI 生成强制规则统一入口**，聚合各域规则 |

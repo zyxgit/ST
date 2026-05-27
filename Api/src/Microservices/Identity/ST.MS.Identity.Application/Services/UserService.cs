@@ -420,6 +420,22 @@ public class UserService : AbstractAppService, IUserService
 		await _dbContext.SaveChangesAsync();
 	}
 
+	public async Task ChangePasswordAsync(ChangePasswordInputDto input)
+	{
+		if (!_userContext.IsAuthenticated || !_userContext.UserId.HasValue)
+			throw new BusinessException("当前登录状态无效");
+
+		var user = await _dbContext.Users.FirstOrDefaultAsync(x => x.Id == _userContext.UserId.Value)
+			?? throw new BusinessException("用户不存在");
+
+		if (!PasswordHelper.VerifyPassword(input.OldPassword, user.Password.Hash, user.Password.Salt))
+			throw new BusinessException("原密码错误");
+
+		user.ChangePassword(BuildPassword(input.NewPassword));
+		await RevokeRefreshTokensAsync(user.Id, "password-change");
+		await _dbContext.SaveChangesAsync();
+	}
+
 	public async Task ChangeUserStatusAsync(Guid id, ChangeUserStatusInputDto input)
 	{
 		var user = await _dbContext.Users.FirstOrDefaultAsync(x => x.Id == id)

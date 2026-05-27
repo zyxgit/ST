@@ -2,6 +2,7 @@ import request from '@/lib/request'
 import type { IdResult, PagedResult } from '@/types/common'
 import type {
   ChangeEmailCommand,
+  ChangePasswordCommand,
   ChangeUserStatusCommand,
   CreateUserCommand,
   EmailExistsResult,
@@ -50,6 +51,10 @@ export function sendEmailCode(data: SendEmailCodeCommand) {
 
 export function changeMyEmail(data: ChangeEmailCommand) {
   return request.put<void>('/identity/api/user/me/email', data)
+}
+
+export function changeMyPassword(data: ChangePasswordCommand) {
+  return request.put<void>('/identity/api/user/me/password', data)
 }
 
 export function changeUserStatus(id: string, data: ChangeUserStatusCommand) {

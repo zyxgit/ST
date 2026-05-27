@@ -6,6 +6,8 @@ on:
     paths-ignore:
       - 'docs/**'
       - '**.md'
+  schedule:
+    - cron: '0 6 * * *'    # daily at 06:00 UTC
   workflow_dispatch:
     inputs:
       push_images:
@@ -15,17 +17,26 @@ on:
       tag_override:
         description: Override image tag (defaults to git sha)
         required: false
+      dry_run:
+        description: Dry-run mode for cleanup (print only, no delete)
+        type: boolean
+        default: false
 
 env:
   REGISTRY: ghcr.io
   DOTNET_VERSION: 10.0.x
   NODE_VERSION: 22
 
+concurrency:
+  group: build-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   # ──────────────────────────────────────────────
   # Backend microservices
   # ──────────────────────────────────────────────
   build-backend:
+    if: github.event_name != 'schedule'
     name: ${{ matrix.service.name }}
     runs-on: ubuntu-latest
     strategy:
@@ -73,6 +84,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/develop' }}
             type=raw,value=${{ steps.datetag.outputs.tag }}
+            type=raw,value=dev-${{ steps.datetag.outputs.tag }}
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -105,6 +117,7 @@ jobs:
   # Frontend
   # ──────────────────────────────────────────────
   build-frontend:
+    if: github.event_name != 'schedule'
     name: st-web
     runs-on: ubuntu-latest
     permissions:
@@ -126,6 +139,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/develop' }}
             type=raw,value=${{ steps.datetag.outputs.tag }}
+            type=raw,value=dev-${{ steps.datetag.outputs.tag }}
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -154,11 +168,36 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ──────────────────────────────────────────────
+  # Backend tests (quality gate)
+  # ──────────────────────────────────────────────
+  test-backend:
+    name: Test Backend
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Run tests (if any exist)
+        run: |
+          TEST_PROJECTS=$(find Api/src -maxdepth 3 -name '*.csproj' -exec grep -l 'Microsoft.NET.Test.Sdk\|NUnit\|xunit' {} \; 2>/dev/null || true)
+          if [ -n "$TEST_PROJECTS" ]; then
+            dotnet test Api/src/ST.slnx --configuration Release --verbosity normal
+          else
+            echo "No test projects found, skipping test phase"
+          fi
+
+
+  # ──────────────────────────────────────────────
+  # ──────────────────────────────────────────────
   # Deploy to local (self-hosted runner)
   # ──────────────────────────────────────────────
   deploy-local:
     name: Deploy to Local
-    needs: [build-backend, build-frontend]
+    needs: [test-backend, build-backend, build-frontend]
     if: github.ref == 'refs/heads/develop'
     runs-on: self-hosted
     environment: "ST Secrets"
@@ -168,6 +207,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            deploy
+            Api/src
+          sparse-checkout-cone-mode: false
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -176,7 +220,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull latest images
+      - name: Pull latest images (parallel)
         shell: pwsh
         run: |
           $services = @(
@@ -188,9 +232,13 @@ jobs:
             "st-ms-fileupload-api",
             "st-ms-test-api"
           )
-          foreach ($svc in $services) {
-            docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/st/${svc}:latest
+          $jobs = foreach ($svc in $services) {
+            Start-Job -ScriptBlock {
+              param($registry, $owner, $svc)
+              docker pull "${registry}/${owner}/st/${svc}:latest"
+            } -ArgumentList ${{ env.REGISTRY }}, '${{ github.repository_owner }}', $svc
           }
+          $jobs | Receive-Job -Wait -AutoRemoveJob
 
       - name: Create .env file
         shell: pwsh
@@ -202,7 +250,6 @@ jobs:
           RABBITUSER=${{ secrets.RABBITUSER }}
           RABBITPASSWORD=${{ secrets.RABBITPASSWORD }}
           JWTSIGNINGKEY=${{ secrets.JWTSIGNINGKEY }}
-          SEQ_ADMIN_PASSWORD=${{ secrets.SEQ_ADMIN_PASSWORD }}
           POSTGRES_HOST_PORT=${{ vars.POSTGRES_HOST_PORT || '25432' }}
           REDIS_HOST_PORT=${{ vars.REDIS_HOST_PORT || '26379' }}
           RABBITMQ_AMQP_HOST_PORT=${{ vars.RABBITMQ_AMQP_HOST_PORT || '25672' }}
@@ -213,11 +260,228 @@ jobs:
           TEST_HOST_PORT=${{ vars.TEST_HOST_PORT || '25089' }}
           GATEWAY_HOST_PORT=${{ vars.GATEWAY_HOST_PORT || '25000' }}
           WEB_HOST_PORT=${{ vars.WEB_HOST_PORT || '280' }}
-          SEQ_HOST_PORT=${{ vars.SEQ_HOST_PORT || '25341' }}
+          APP_IS_DATA_SEED=false
           '@ | Out-File -FilePath deploy/.env -Encoding utf8
 
-      - name: Restart containers
+      - name: Restart service containers (keep infra running)
         run: |
-          docker compose -p st -f deploy/docker-compose.yml --env-file deploy/.env down
-          docker compose -p st -f deploy/docker-compose.yml --env-file deploy/.env up -d
-          docker image prune -f
+          docker compose -p st -f deploy/docker-compose.yml --env-file deploy/.env up -d --pull always --force-recreate
+          docker image prune -f --filter until=24h
+
+      # ──────────────────────────────────────────────
+      # DB migrations (after containers are up)
+      # ──────────────────────────────────────────────
+
+      - name: Wait for PostgreSQL to be ready
+        shell: powershell
+        run: |
+          $dbPort = "${{ vars.POSTGRES_HOST_PORT || '25432' }}"
+          $maxRetries = 30
+          $retryDelay = 2
+          for ($i = 0; $i -lt $maxRetries; $i++) {
+            try {
+              $tcp = New-Object System.Net.Sockets.TcpClient
+              $tcp.Connect("localhost", $dbPort)
+              $tcp.Close()
+              Write-Host "PostgreSQL is ready!"
+              break
+            } catch {
+              Write-Host "Waiting for PostgreSQL (attempt $($i+1)/$maxRetries)..."
+              if ($i -eq $maxRetries - 1) { throw "PostgreSQL not available after $($maxRetries * $retryDelay) seconds" }
+              Start-Sleep -Seconds $retryDelay
+            }
+          }
+
+
+      - name: Check existing .NET SDK
+        shell: powershell
+        run: |
+          $dotnetPath = "${{ github.workspace }}/.dotnet/dotnet.exe"
+          if (Test-Path $dotnetPath) {
+            $ver = & $dotnetPath --version
+            if ($ver -match '^10.') {
+              Add-Content -Path $env:GITHUB_ENV -Value "DOTNET_EXISTS=true" -Encoding utf8
+              Add-Content -Path $env:GITHUB_PATH -Value "${{ github.workspace }}/.dotnet" -Encoding utf8
+              Write-Host ".NET SDK $ver already installed (from previous run), skipping setup"
+            }
+          } else {
+            Write-Host ".NET SDK not cached, will install via setup-dotnet"
+          }
+      - name: Setup .NET SDK for EF migrations
+        env:
+          DOTNET_INSTALL_DIR: ${{ github.workspace }}/.dotnet
+        if: env.DOTNET_EXISTS != 'true'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install dotnet-ef (local)
+        shell: powershell
+        run: |
+          dotnet tool install dotnet-ef --tool-path ${{ github.workspace }}/.dotnet-tools
+
+      - name: Run EF Core migrations
+        shell: powershell
+        run: |
+          $env:PATH = "${{ github.workspace }}/.dotnet-tools;$env:PATH"
+          # 只 restore 需要迁移的项目（Infra + Startup），避免 restore 整个 solution
+          $restoreProjects = @(
+            "Api/src/Microservices/Identity/ST.MS.Identity.Infra/ST.MS.Identity.Infra.csproj",
+            "Api/src/Microservices/Identity/ST.MS.Identity.Api/ST.MS.Identity.Api.csproj",
+            "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Infra/ST.MS.OperationLog.Infra.csproj",
+            "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Api/ST.MS.OperationLog.Api.csproj",
+            "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Infra/ST.MS.FileUpload.Infra.csproj",
+            "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Api/ST.MS.FileUpload.Api.csproj",
+            "Api/src/Microservices/Test/ST.MS.Test.Infra/ST.MS.Test.Infra.csproj",
+            "Api/src/Microservices/Test/ST.MS.Test.Api/ST.MS.Test.Api.csproj"
+          )
+          $restoreProjects | ForEach-Object {
+            dotnet restore $_ 2>&1 | Out-Null
+          }
+          $dbHost = "localhost"
+          $dbPort = "${{ vars.POSTGRES_HOST_PORT || '25432' }}"
+          $dbUser = "${{ secrets.PGUSER }}"
+          $dbPassword = "${{ secrets.PGPASSWORD }}"
+
+          $migrations = @(
+            @{
+              Name = "Identity"
+              Project = "Api/src/Microservices/Identity/ST.MS.Identity.Infra/ST.MS.Identity.Infra.csproj"
+              Startup = "Api/src/Microservices/Identity/ST.MS.Identity.Api/ST.MS.Identity.Api.csproj"
+              DbName = "${{ vars.IDENTITY_DB_NAME || 'st_identity' }}"
+            },
+            @{
+              Name = "OperationLog"
+              Project = "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Infra/ST.MS.OperationLog.Infra.csproj"
+              Startup = "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Api/ST.MS.OperationLog.Api.csproj"
+              DbName = "${{ vars.OPERATIONLOG_DB_NAME || 'st_operationlog' }}"
+            },
+            @{
+              Name = "FileUpload"
+              Project = "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Infra/ST.MS.FileUpload.Infra.csproj"
+              Startup = "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Api/ST.MS.FileUpload.Api.csproj"
+              DbName = "${{ vars.FILEUPLOAD_DB_NAME || 'st_fileupload' }}"
+            },
+            @{
+              Name = "Test"
+              Project = "Api/src/Microservices/Test/ST.MS.Test.Infra/ST.MS.Test.Infra.csproj"
+              Startup = "Api/src/Microservices/Test/ST.MS.Test.Api/ST.MS.Test.Api.csproj"
+              DbName = "${{ vars.TEST_DB_NAME || 'st_test' }}"
+            }
+          )
+
+          foreach ($m in $migrations) {
+            Write-Host "Applying migration for $($m.Name) on DB=$($m.DbName)..."
+            $env:Database__ConnectionString = "Host=$dbHost;Port=$dbPort;Username=$dbUser;Password=$dbPassword;Database=$($m.DbName)"
+            dotnet ef database update --project $m.Project --startup-project $m.Startup --configuration Release
+          }
+
+      # ── Enable data seeding, restart only app services ──
+      - name: Enable data seeding (APP_IS_DATA_SEED=true)
+        shell: powershell
+        run: |
+          (Get-Content deploy/.env) -replace 'APP_IS_DATA_SEED=false', 'APP_IS_DATA_SEED=true' | Set-Content deploy/.env
+          Write-Host "APP_IS_DATA_SEED set to true"
+
+      - name: Restart services to run seeds
+        shell: powershell
+        run: |
+          $appServices = @(
+            "st-ms-identity-api",
+            "st-ms-operationlog-api",
+            "st-ms-operationlog-consumer",
+            "st-ms-fileupload-api",
+            "st-ms-test-api",
+            "st-gateway",
+            "st-web"
+          )
+          docker compose -p st -f deploy/docker-compose.yml --env-file deploy/.env up -d --force-recreate $appServices
+
+      - name: Health check — wait for gateway
+        shell: powershell
+        run: |
+          $gatewayPort = "${{ vars.GATEWAY_HOST_PORT || '25000' }}"
+          $maxRetries = 15
+          $retryDelay = 3
+          for ($i = 0; $i -lt $maxRetries; $i++) {
+            try {
+              $response = Invoke-WebRequest -Uri "http://localhost:${gatewayPort}/" -TimeoutSec 5 -UseBasicParsing
+              Write-Host "Gateway is healthy! (HTTP $($response.StatusCode))"
+              break
+            } catch {
+              Write-Host "Waiting for gateway (attempt $($i+1)/$maxRetries)..."
+              if ($i -eq $maxRetries - 1) { throw "Gateway not available after $($maxRetries * $retryDelay) seconds" }
+              Start-Sleep -Seconds $retryDelay
+            }
+          }
+
+  # ══════════════════════════════════════════════
+  # Cleanup old dev images  ← 新增 job
+  # ══════════════════════════════════════════════
+  cleanup:
+    name: Cleanup old dev images
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      contents: read
+      packages: write       # needed for DELETE versions
+    env:
+      KEEP_COUNT: 10
+      # 与 build-backend matrix.service.name + st-web 保持一致
+      SERVICES: '["st-ms-identity-api","st-ms-operationlog-api","st-ms-operationlog-consumer","st-ms-fileupload-api","st-ms-test-api","st-gateway","st-web"]'
+      # 可被 workflow_dispatch 的 dry_run 输入覆盖
+      DRY_RUN: ${{ inputs.dry_run || false }}
+    steps:
+      - name: Cleanup dev-tagged images per service
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          KEEP=${{ env.KEEP_COUNT }}
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+
+          for SERVICE in $(echo '${{ env.SERVICES }}' | jq -r '.[]'); do
+            echo "╔══════════════════════════════════════════"
+            echo "║ Processing: ${SERVICE}"
+            echo "╚══════════════════════════════════════════"
+
+            # ── 获取所有版本（含标签），按创建时间降序 ──
+            VERSIONS=$(gh api \
+              "/repos/${OWNER}/${REPO}/packages/container/${SERVICE}/versions" \
+              --jq '[.[] | select(.metadata.container.tags | length > 0) |
+                {id: .id, tags: .metadata.container.tags, created_at: .created_at}] |
+                sort_by(.created_at) | reverse' 2>/dev/null) || {
+              echo "  [SKIP] 无法获取版本信息（包可能不存在）"
+              continue
+            }
+
+            # ── 仅保留含 "dev-" 标签的版本 ──
+            DEV_VERSIONS=$(echo "$VERSIONS" | jq '[.[] | select(.tags[] | startswith("dev-"))]')
+            TOTAL=$(echo "$DEV_VERSIONS" | jq 'length')
+            echo "  dev-* 版本数: ${TOTAL}"
+
+            if [ "$TOTAL" -le "$KEEP" ]; then
+              echo "  无需清理 (${TOTAL} ≤ ${KEEP})"
+              continue
+            fi
+
+            # ── 超出保留数的旧版本 ──
+            TO_DELETE=$(echo "$DEV_VERSIONS" | jq ".[${KEEP}:][]")
+            DELETE_COUNT=$(echo "$TO_DELETE" | jq -s 'length')
+            echo "  待删除版本: ${DELETE_COUNT}"
+
+            echo "$TO_DELETE" | jq -c '.' | while read -r ITEM; do
+              VID=$(echo "$ITEM" | jq -r '.id')
+              TAGS=$(echo "$ITEM" | jq -r '.tags | join(", ")')
+              echo "  [DELETE] ID=${VID}  tags=[${TAGS}]"
+
+              if [ "${{ env.DRY_RUN }}" = "true" ]; then
+                echo "  [DRY-RUN] 跳过实际删除"
+              else
+                gh api -X DELETE \
+                  "/repos/${OWNER}/${REPO}/packages/container/${SERVICE}/versions/${VID}" \
+                  --silent && echo "  [OK] 已删除" || echo "  [WARN] 删除失败"
+              fi
+            done
+          done

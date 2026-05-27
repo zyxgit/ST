@@ -166,6 +166,16 @@ public class UserController : AbstractControllerBase
 	}
 
 	/// <summary>
+	/// 当前用户修改密码
+	/// </summary>
+	[HttpPut("me/password")]
+	[OperationLog("修改当前用户密码", RecordRequest = false, RecordResponse = false)]
+	public async Task ChangePassword(ChangePasswordInputDto input)
+	{
+		await _userService.ChangePasswordAsync(input);
+	}
+
+	/// <summary>
 	/// 启用/禁用用户
 	/// </summary>
 	[HttpPut("users/{id:guid}/status")]
