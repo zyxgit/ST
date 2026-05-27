@@ -6,6 +6,8 @@ ST 是一个面向 **微服务后台管理系统** 的 Monorepo 项目，包含 
 
 - **后端微服务**：基于 .NET、ASP.NET Core、EF Core、PostgreSQL、Redis、RabbitMQ、NLog、OpenAPI / Scalar。
 - **统一网关**：`ST.Gateway` 使用 YARP 聚合 Identity、OperationLog、Test、FileUpload 等服务。
+- **可观测性**：OpenTelemetry (OTLP) → Grafana Alloy → Loki → Grafana 日志链路，支持 LogQL 查询与二阶段规划（Metrics / Tempo）。
+- **CI/CD**：GitHub Actions 自动构建镜像 → GHCR → 部署、EF Core 迁移、数据种子、健康检查、镜像清理。
 - **前端管理端**：`Web/` 使用 Vue 3、TypeScript、Vite、Pinia、Vue Router、Naive UI、Axios。
 - **工程化文档**：`docs/ai/AI-RULES.md` 是 AI 生成规则总入口，要求功能变更与文档同步提交。
 
@@ -22,6 +24,8 @@ ST/
 │   │   ├── ServiceShared/    # 共享 WebApi、Application、Domain、公共原语
 │   │   └── ST.slnx           # 后端解决方案入口
 ├── Web/                      # Vue 3 + TypeScript 管理端
+├── deploy/                   # Docker Compose、Alloy/Loki/Grafana 配置、环境变量
+├── .github/workflows/        # CI/CD：构建、部署、迁移、清理
 └── docs/                     # 架构、API、数据库、部署、AI 协作规范
 ```
 
@@ -31,7 +35,7 @@ ST/
 |------|------|------|
 | Aspire | `Api/src/Aspire/ST.Aspire.AppHost` | 本地编排 Redis、PostgreSQL、RabbitMQ 与各微服务 |
 | Gateway | `Api/src/Microservices/Gateway/ST.Gateway` | YARP 反向代理、CORS、限流、文档入口 |
-| Identity | `Api/src/Microservices/Identity` | 用户、角色、菜单、权限、JWT 登录 |
+| Identity | `Api/src/Microservices/Identity` | 用户、角色、菜单、权限、JWT 登录、修改密码 |
 | OperationLog | `Api/src/Microservices/OperationLog` | 操作日志 API 与消费者 |
 | FileUpload | `Api/src/Microservices/FileUpload` | 文件上传、元数据管理、本地存储扩展点 |
 | Test | `Api/src/Microservices/Test` | 示例微服务与分层模板 |
@@ -47,7 +51,7 @@ ST/
 | 状态 | `Web/src/stores/` | Pinia 会话、菜单、应用状态 |
 | 请求 | `Web/src/lib/request.ts` | Axios 基址、Bearer Token、401 刷新处理 |
 | 页面 | `Web/src/views/` | 登录、仪表盘、用户、角色、菜单、操作日志等 |
-| 组件 | `Web/src/components/` | 布局、通用表格操作、富文本、图标选择、头像裁剪等 |
+| 组件 | `Web/src/components/` | 布局、通用表格操作、富文本、图标选择、头像裁剪、修改密码等 |
 
 ## 网关路由速览
 
@@ -97,6 +101,15 @@ cd Web
 pnpm build
 ```
 
+### 启动可观测性栈
+
+```bash
+cd deploy
+docker compose up -d alloy loki grafana
+```
+
+详见 [docs/deploy/README.md](docs/deploy/README.md)（含 OTLP → Alloy → Loki → Grafana 日志链路）。
+
 ## 文档入口
 
 | 文档 | 用途 |
@@ -106,7 +119,8 @@ pnpm build
 | `docs/architecture/README.md` | 架构导航 |
 | `docs/api/README.md` | 对外 API 与集成说明 |
 | `docs/database/README.md` | 数据与存储导航 |
-| `docs/deploy/README.md` | 部署与运行导航 |
+| `docs/deploy/README.md` | 部署与运行导航（含 Docker 镜像、CI/CD、OTel 可观测性栈） |
+| `docs/ai/common/Observability.md` | OpenTelemetry → Alloy → Loki → Grafana 日志链路 |
 | `docs/ai/common/DocumentationSync.md` | 功能迭代与文档同步规则 |
 
 ## 文档同步要求
@@ -140,3 +154,6 @@ pnpm build
 ## License
 
 版权所有，仅供学习参考，未经许可不得用于商业用途。
+
+
+
