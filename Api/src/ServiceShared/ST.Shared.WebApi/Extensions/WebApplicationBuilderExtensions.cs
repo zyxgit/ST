@@ -53,8 +53,16 @@ public static class WebApplicationBuilderExtensions
 
 		var config = NLog.LogManager.Configuration;
 
-		// OpenTelemetry 已由 AddServiceDefaults() 中的 ConfigureOpenTelemetry() 统一配置，
-		// 含 logging + metrics + tracing + UseOtlpExporter()，此处不再重复注册。
+		// OpenTelemetry LoggerProvider 被 ClearProviders 清除后重新注册（仅 logging），
+		// 让 ILogger 日志同时走 NLog + OTLP。Metrics/Tracing/UseOtlpExporter 由 ServiceDefaults 处理。
+		if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+		{
+			builder.Logging.AddOpenTelemetry(logging =>
+			{
+				logging.IncludeFormattedMessage = true;
+				logging.IncludeScopes = true;
+			});
+		}
 
 		// OperationLog：默认注册 No-Op Sink + Dispatcher（避免未启用落库实现时启动失败）
 		builder.Services.TryAddSingleton<IOptions<OperationLogOptions>>(_ =>

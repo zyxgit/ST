@@ -130,6 +130,7 @@ services:
       App__IsDataSeed: "${APP_IS_DATA_SEED:-false}"
       Jwt__SigningKey: ${JWTSIGNINGKEY}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+      OTEL_SERVICE_NAME: st-ms-identity-api
     ports:
       - "${IDENTITY_HOST_PORT:-27127}:8080"
     volumes:
@@ -155,6 +156,7 @@ services:
       App__IsCodeFirst: "false"
       App__IsCreateDatabase: "false"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+      OTEL_SERVICE_NAME: st-ms-operationlog-api
     ports:
       - "${OPERATIONLOG_HOST_PORT:-21001}:8080"
     volumes:
@@ -176,6 +178,7 @@ services:
       ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_operationlog
       ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+      OTEL_SERVICE_NAME: st-ms-operationlog-consumer
     volumes:
       - operationlog-consumer-logs:/app/logs
     networks:
@@ -200,6 +203,7 @@ services:
       FileStorage__Type: Local
       FileStorage__UploadRoot: /app/uploads
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+      OTEL_SERVICE_NAME: st-ms-fileupload-api
     ports:
       - "${FILEUPLOAD_HOST_PORT:-27250}:8080"
     volumes:
@@ -226,6 +230,7 @@ services:
       App__IsCreateDatabase: "false"
       App__IsDataSeed: "${APP_IS_DATA_SEED:-false}"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+      OTEL_SERVICE_NAME: st-ms-test-api
     ports:
       - "${TEST_HOST_PORT:-25089}:8080"
     volumes:
@@ -252,6 +257,7 @@ services:
       DownstreamServices__FileUpload__Address: http://st-ms-fileupload-api:8080
       Cors__AllowedOrigins__0: http://localhost:280
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+      OTEL_SERVICE_NAME: st-gateway
     ports:
       - "${GATEWAY_HOST_PORT:-25000}:8080"
     volumes:

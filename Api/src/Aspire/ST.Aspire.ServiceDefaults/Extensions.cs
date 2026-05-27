@@ -7,6 +7,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 namespace Microsoft.Extensions.Hosting;
@@ -58,6 +59,7 @@ public static class Extensions
 		});
 
 		builder.Services.AddOpenTelemetry()
+			.ConfigureResource(resource => resource.AddService(builder.Environment.ApplicationName))
 			.WithMetrics(metrics =>
 			{
 				metrics.AddAspNetCoreInstrumentation()
