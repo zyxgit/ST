@@ -114,6 +114,110 @@ docker build -t st-web Web/
 
 Nginx 配置见 `Web/nginx.conf`，含 SPA 路由回退与静态资源缓存。
 
+## 可观测性（Observability — 一期日志链路）
+
+实现 **OpenTelemetry + Grafana Alloy + Loki + Grafana** 日志链路。
+
+### 架构
+
+```
+.NET 微服务 (OTLP gRPC port 4317)
+       │
+       ▼
+  Grafana Alloy (port 4317)
+       │
+       ▼
+  Loki (port 3100)
+       │
+       ▼
+  Grafana (port 3000, 预置 Loki 数据源)
+```
+
+### 配置目录
+
+| 组件 | 配置路径 |
+|------|----------|
+| Alloy | [`deploy/alloy/config.alloy`](../../deploy/alloy/config.alloy) |
+| Loki | [`deploy/loki/loki-config.yaml`](../../deploy/loki/loki-config.yaml) |
+| Grafana Datasource | [`deploy/grafana/datasources/loki.yaml`](../../deploy/grafana/datasources/loki.yaml) |
+
+### 启动
+
+```bash
+# 完整启动（含可观测性栈）
+cd deploy
+docker compose up -d
+
+# 仅可观测性栈（基础设施已运行）
+docker compose up -d alloy loki grafana
+```
+
+### 访问
+
+| 组件 | 地址 | 默认凭据 |
+|------|------|----------|
+| Grafana | `http://localhost:23000` | `admin / admin123` |
+| Loki (HTTP API) | `http://localhost:23100` | 无需认证 |
+
+### 验证
+
+```bash
+# 1. 检查容器状态
+docker compose -f deploy/docker-compose.yml ps
+
+# 2. 查询 Loki 是否已收到日志
+curl -s "http://localhost:23100/loki/api/v1/query_range?query=%7Bsource%3D%22st-alloy%22%7D&limit=5" | jq
+
+# 3. Grafana Explore
+#   打开 http://localhost:23000 → Explore → 选择 Loki 数据源
+#   查询: {source="st-alloy"}
+```
+
+### LogQL 查询示例
+
+```logql
+# 按服务名查询
+{service_name="st-ms-identity-api"}
+
+# 按日志级别过滤
+{service_name="st-ms-identity-api"} |= "Error"
+
+# 按 TraceId 检索
+{service_name=~".+"} |= "TraceId=abc123"
+
+# 查询过去 15 分钟错误日志
+{source="st-alloy"} |= "fail" |= "Error"
+```
+
+### 环境变量
+
+新增以下 `.env` 变量（`deploy/.env` / `deploy/.env.example`）：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `GRAFANA_ADMIN_USER` | `admin` | Grafana 管理员用户名 |
+| `GRAFANA_ADMIN_PASSWORD` | `admin123` | Grafana 管理员密码 |
+| `GRAFANA_HOST_PORT` | `23000` | Grafana 宿主机端口 |
+| `LOKI_HOST_PORT` | `23100` | Loki 宿主机端口 |
+| `ALLOY_OTLP_GRPC_PORT` | `24317` | Alloy OTLP gRPC 宿主机端口 |
+| `ALLOY_OTLP_HTTP_PORT` | `24318` | Alloy OTLP HTTP 宿主机端口 |
+
+### 启用 OTLP 导出
+
+.NET 微服务通过 `OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4317` 环境变量启用 OTLP 日志导出。已在 `docker-compose.yml` 中为每个微服务设置此变量。
+
+开启条件（代码见 `WebApplicationBuilderExtensions.cs`）：
+- 设置 `OTEL_EXPORTER_OTLP_ENDPOINT` 后自动启用 `builder.Logging.AddOpenTelemetry()`
+- 同时启用 Metrics（AspNetCore + HttpClient + Runtime）和 Tracing（AspNetCore + HttpClient）
+
+### 二阶段规划
+
+| 阶段 | 内容 | 接入点 |
+|------|------|--------|
+| 一期（本期） | 日志链路 OTLP → Alloy → Loki → Grafana | Alloy:4317 gRPC |
+| 二期 | Prometheus metrics + 告警规则 | Alloy 已预留 batch processor |
+| 三期 | Tempo trace 链路 + 日志-追踪联动 | Loki derived fields → Tempo |
+
 ## AI 注意
 
 - 部署清单、K8s、Helm 等可在此目录下按环境追加子文档；**与 `docs/ai/common/Monorepo.md` 的目录约定不冲突**即可。

@@ -1,0 +1,70 @@
+// =============================================================================
+// Grafana Alloy 配置 — 日志链路（OTLP → Loki）
+// 二阶段将追加 metrics / traces 管道
+// =============================================================================
+
+// ── OTLP Receiver ──────────────────────────────────────────────────────────
+// 从 .NET 微服务接收 OTLP gRPC / HTTP 日志
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+  output {
+    logs     = [otelcol.exporter.loki.default.input]
+    // 二阶段解除注释，接入 metrics / traces
+    // metrics = [otelcol.processor.batch.default.input]
+    // traces  = [otelcol.processor.batch.default.input]
+  }
+}
+
+// ── OTLP → Loki Exporter ──────────────────────────────────────────────────
+// 将 OTLP 日志转换为 Loki 条目
+otelcol.exporter.loki "default" {
+  forward_to = [loki.process.default.receiver]
+}
+
+// ── Loki Label Processor ───────────────────────────────────────────────────
+// 从 OTel 资源/日志属性提取 Loki label
+loki.process "default" {
+  // stage.otel 自动将 OTel resource attributes → Loki label（如 service.name）
+  stage.otel {}
+
+  forward_to = [loki.write.default.receiver]
+}
+
+// ── Loki Write ─────────────────────────────────────────────────────────────
+// 将日志条目推送到 Loki
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+  external_labels = {
+    source = "st-alloy",
+  }
+}
+
+// =============================================================================
+// 二阶段预留（Prometheus metrics 管道示例）
+// =============================================================================
+// otelcol.processor.batch "default" {
+//   timeout = 5s
+//   send_batch_size = 10000
+//   output {
+//     metrics = [otelcol.exporter.prometheus.default.input]
+//   }
+// }
+//
+// otelcol.exporter.prometheus "default" {
+//   include_target_info = true
+//   include_scope_info  = true
+//   forward_to = [prometheus.remote_write.default.receiver]
+// }
+//
+// prometheus.remote_write "default" {
+//   endpoint {
+//     url = "http://prometheus:9090/api/v1/write"
+//   }
+// }
