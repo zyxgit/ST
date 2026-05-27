@@ -80,6 +80,11 @@ export interface ChangeUserStatusCommand {
   isEnable: boolean
 }
 
+export interface ChangePasswordCommand {
+  oldPassword: string
+  newPassword: string
+}
+
 export interface ResetUserPasswordCommand {
   password: string
 }

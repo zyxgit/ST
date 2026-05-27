@@ -3,6 +3,7 @@ import {
   ExpandOutline,
   CheckmarkOutline,
   ContractOutline,
+  LockClosedOutline,
   LogOutOutline,
   MenuOutline,
   MoonOutline,
@@ -19,7 +20,7 @@ import { useRoute } from 'vue-router'
 import AppTopNav from './AppTopNav.vue'
 
 import AvatarCropperModal from '@/components/common/AvatarCropperModal.vue'
-import { changeMyEmail, checkEmailExists, deleteUserAvatar, getUserDetail, sendEmailCode, setUserAvatar, updateUser } from '@/api/user'
+import { changeMyEmail, changeMyPassword, checkEmailExists, deleteUserAvatar, getUserDetail, sendEmailCode, setUserAvatar, updateUser } from '@/api/user'
 import { uploadFile } from '@/api/file'
 import { buildBreadcrumbs } from '@/lib/admin-menu'
 import { emailRule, requiredRule } from '@/lib/form-rules'
@@ -122,11 +123,44 @@ const profileRules = computed<FormRules>(() => ({
     : {}),
 }))
 
+const showChangePasswordModal = ref(false)
+const savingPassword = ref(false)
+const changePasswordFormRef = ref<FormInst | null>(null)
+const changePasswordForm = reactive({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+})
+const changePasswordRules: FormRules = {
+  oldPassword: [requiredRule('原密码')],
+  newPassword: [
+    requiredRule('新密码'),
+    { min: 6, message: '密码至少 6 位', trigger: 'blur' },
+  ],
+  confirmPassword: [
+    requiredRule('确认密码'),
+    {
+      trigger: ['blur', 'input'],
+      validator: (_rule, value: string) => {
+        if (value !== changePasswordForm.newPassword) {
+          return new Error('两次输入的密码不一致')
+        }
+        return true
+      },
+    },
+  ],
+}
+
 const userOptions = [
   {
     label: '个人信息',
     key: 'profile',
     icon: () => h(NIcon, null, { default: () => h(PersonCircleOutline) }),
+  },
+  {
+    label: '修改密码',
+    key: 'change-password',
+    icon: () => h(NIcon, null, { default: () => h(LockClosedOutline) }),
   },
   {
     label: '退出登录',
@@ -138,6 +172,13 @@ const userOptions = [
 async function handleOptionSelect(key: string) {
   if (key === 'profile') {
     await openProfileModal()
+    return
+  }
+
+  if (key === 'change-password') {
+    showChangePasswordModal.value = true
+    await nextTick()
+    changePasswordFormRef.value?.restoreValidation()
     return
   }
 
@@ -363,6 +404,32 @@ async function handleProfileSave() {
     message.success('个人信息已更新')
   } finally {
     savingProfile.value = false
+  }
+}
+
+async function handleChangePasswordSave() {
+  try {
+    await changePasswordFormRef.value?.validate()
+  } catch {
+    return
+  }
+
+  savingPassword.value = true
+
+  try {
+    await changeMyPassword({
+      oldPassword: changePasswordForm.oldPassword,
+      newPassword: changePasswordForm.newPassword,
+    })
+    showChangePasswordModal.value = false
+    changePasswordForm.oldPassword = ''
+    changePasswordForm.newPassword = ''
+    changePasswordForm.confirmPassword = ''
+    message.success('密码已修改，请重新登录')
+  } catch {
+    message.error('密码修改失败')
+  } finally {
+    savingPassword.value = false
   }
 }
 
@@ -713,6 +780,26 @@ async function handleThemeToggle(event: MouseEvent) {
       <div class="profile-modal__footer">
         <n-button @click="showProfileModal = false">取消</n-button>
         <n-button type="primary" :loading="savingProfile" @click="handleProfileSave">保存</n-button>
+      </div>
+    </template>
+  </n-modal>
+
+  <n-modal v-model:show="showChangePasswordModal" preset="card" style="width: 420px" title="修改密码">
+    <n-form ref="changePasswordFormRef" :model="changePasswordForm" :rules="changePasswordRules" label-placement="top">
+      <n-form-item label="原密码" path="oldPassword">
+        <n-input v-model:value="changePasswordForm.oldPassword" type="password" show-password-on="click" placeholder="请输入原密码" />
+      </n-form-item>
+      <n-form-item label="新密码" path="newPassword">
+        <n-input v-model:value="changePasswordForm.newPassword" type="password" show-password-on="click" placeholder="请输入新密码（至少 6 位）" />
+      </n-form-item>
+      <n-form-item label="确认密码" path="confirmPassword">
+        <n-input v-model:value="changePasswordForm.confirmPassword" type="password" show-password-on="click" placeholder="请再次输入新密码" />
+      </n-form-item>
+    </n-form>
+    <template #footer>
+      <div style="display: flex; justify-content: flex-end; gap: 12px;">
+        <n-button @click="showChangePasswordModal = false">取消</n-button>
+        <n-button type="primary" :loading="savingPassword" @click="handleChangePasswordSave">保存</n-button>
       </div>
     </template>
   </n-modal>

@@ -1,10 +1,12 @@
-using System.Threading;
+using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using ST.Infra.Repository.Interface;
 using ST.Shared.Const;
 
@@ -60,8 +62,7 @@ public sealed class CodeFirstExecutor<TContext> : ICodeFirstExecutor where TCont
 		var hasMigrations = dbContext.Database.GetMigrations().Any();
 		if (hasMigrations)
 		{
-			_logger.LogInformation("DbContext {DbContext} is applying migrations.", typeof(TContext).Name);
-			await dbContext.Database.MigrateAsync();
+			await EnsureDatabaseWithMigrationsAsync(dbContext);
 			return;
 		}
 
@@ -93,6 +94,88 @@ public sealed class CodeFirstExecutor<TContext> : ICodeFirstExecutor where TCont
 		// 此处全部清除，使数据库只保留列、主键、索引，不含 FOREIGN KEY。
 		// 迁移路径由 NoForeignKeySqlGenerator 保证不生成外键。
 		await DropAllForeignKeysAsync(dbContext);
+	}
+
+	private async Task EnsureDatabaseWithMigrationsAsync(TContext dbContext)
+	{
+		var historyRepo = dbContext.GetService<IHistoryRepository>();
+		var historyExists = await historyRepo.ExistsAsync();
+
+		var allMigrations = dbContext.Database.GetMigrations().ToList();
+		var appliedCount = 0;
+
+		if (historyExists)
+		{
+			appliedCount = (await historyRepo.GetAppliedMigrationsAsync()).Count;
+		}
+
+		if (appliedCount == 0)
+		{
+			var relationalCreator = dbContext.GetService<IRelationalDatabaseCreator>();
+			var hasTables = await relationalCreator.HasTablesAsync();
+
+			if (hasTables)
+			{
+				_logger.LogInformation(
+					"DbContext {DbContext} has {Count} migration(s) and existing tables but no migration history. Seeding history.",
+					typeof(TContext).Name, allMigrations.Count);
+
+				if (!historyExists)
+				{
+					var createScript = historyRepo.GetCreateIfNotExistsScript();
+					if (!string.IsNullOrEmpty(createScript))
+						await dbContext.Database.ExecuteSqlRawAsync(createScript);
+				}
+
+				var productVersion = typeof(DbContext).Assembly
+					.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+					?.InformationalVersion ?? "10.0.0";
+				foreach (var migrationId in allMigrations)
+				{
+					var row = new HistoryRow(migrationId, productVersion);
+					var insertScript = historyRepo.GetInsertScript(row);
+					await dbContext.Database.ExecuteSqlRawAsync(insertScript);
+				}
+
+				_logger.LogInformation(
+					"DbContext {DbContext} transitioned {Count} migration(s) without executing (tables already exist).",
+					typeof(TContext).Name, allMigrations.Count);
+				return;
+			}
+		}
+
+		_logger.LogInformation(
+			"DbContext {DbContext} is applying migrations. (historyExists={HistoryExists}, appliedCount={AppliedCount})",
+			typeof(TContext).Name, historyExists, appliedCount);
+
+		try
+		{
+			await dbContext.Database.MigrateAsync();
+		}
+		catch (PostgresException ex) when (ex.SqlState == "42P07")
+		{
+			_logger.LogWarning(ex, "MigrateAsync failed because table already exists. Seeding migration history and retrying.");
+
+			if (!await historyRepo.ExistsAsync())
+			{
+				var createScript = historyRepo.GetCreateIfNotExistsScript();
+				if (!string.IsNullOrEmpty(createScript))
+					await dbContext.Database.ExecuteSqlRawAsync(createScript);
+			}
+
+			var productVersion = typeof(DbContext).Assembly
+				.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+				?.InformationalVersion ?? "10.0.0";
+			foreach (var migrationId in allMigrations)
+			{
+				var row = new HistoryRow(migrationId, productVersion);
+				await dbContext.Database.ExecuteSqlRawAsync(historyRepo.GetInsertScript(row));
+			}
+
+			_logger.LogInformation(
+				"DbContext {DbContext} recovered from 42P07 by seeding {Count} migration(s).",
+				typeof(TContext).Name, allMigrations.Count);
+		}
 	}
 
 	private static async Task DropAllForeignKeysAsync(TContext dbContext)
