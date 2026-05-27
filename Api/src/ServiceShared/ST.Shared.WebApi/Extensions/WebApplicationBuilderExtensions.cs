@@ -53,30 +53,8 @@ public static class WebApplicationBuilderExtensions
 
 		var config = NLog.LogManager.Configuration;
 
-		// OpenTelemetry：读取 OTEL_EXPORTER_OTLP_ENDPOINT 环境变量，有则启用 OTLP 导出
-		if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
-		{
-			builder.Logging.AddOpenTelemetry(logging =>
-			{
-				logging.IncludeFormattedMessage = true;
-				logging.IncludeScopes = true;
-			});
-
-			builder.Services.AddOpenTelemetry()
-				.WithMetrics(metrics =>
-				{
-					metrics.AddAspNetCoreInstrumentation()
-						.AddHttpClientInstrumentation()
-						.AddRuntimeInstrumentation();
-				})
-				.WithTracing(tracing =>
-				{
-					tracing.AddSource(builder.Environment.ApplicationName)
-						.AddAspNetCoreInstrumentation()
-						.AddHttpClientInstrumentation();
-				})
-				.UseOtlpExporter();
-		}
+		// OpenTelemetry 已由 AddServiceDefaults() 中的 ConfigureOpenTelemetry() 统一配置，
+		// 含 logging + metrics + tracing + UseOtlpExporter()，此处不再重复注册。
 
 		// OperationLog：默认注册 No-Op Sink + Dispatcher（避免未启用落库实现时启动失败）
 		builder.Services.TryAddSingleton<IOptions<OperationLogOptions>>(_ =>
