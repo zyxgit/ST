@@ -48,7 +48,7 @@ Grafana
 - 镜像：`grafana/alloy:v1.8.1`
 - 配置：[`deploy/alloy/config.alloy`](../../deploy/alloy/config.alloy)
 - OTLP gRPC 端口 `4317`（容器内），宿主映射 `24317`
-- `stage.otel{}` 自动将 OTel resource attributes 转为 Loki label（如 `service_name`）
+- `otelcol.exporter.loki` 自动将 OTel resource attributes 转为 Loki labels（如 `service_name`、`service_instance_id`）
 - 二阶段预留 Prometheus metrics pipeline（注释状态）
 
 ### Loki
@@ -117,7 +117,7 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOIN
 
 ### 日志字段
 
-Loki label 来自 OTel resource attributes（`stage.otel{}` 自动映射）：
+Loki label 来自 OTel resource attributes（`otelcol.exporter.loki` 自动映射）：
 
 | Loki Label | OTel Resource Attribute | 示例 |
 |------------|------------------------|------|

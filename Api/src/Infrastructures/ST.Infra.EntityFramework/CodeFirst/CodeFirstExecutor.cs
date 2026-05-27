@@ -73,18 +73,45 @@ public sealed class CodeFirstExecutor<TContext> : ICodeFirstExecutor where TCont
 		{
 			_logger.LogInformation("DbContext {DbContext} database does not exist. Creating database and tables.", typeof(TContext).Name);
 			await dbContext.Database.EnsureCreatedAsync();
-			return;
 		}
-
-		var hasTables = await databaseCreator.HasTablesAsync();
-		if (!hasTables)
+		else
 		{
-			_logger.LogInformation("DbContext {DbContext} database exists but has no tables. Creating tables from current model.", typeof(TContext).Name);
-			await databaseCreator.CreateTablesAsync();
-			return;
+			var hasTables = await databaseCreator.HasTablesAsync();
+			if (!hasTables)
+			{
+				_logger.LogInformation("DbContext {DbContext} database exists but has no tables. Creating tables from current model.", typeof(TContext).Name);
+				await databaseCreator.CreateTablesAsync();
+			}
+			else
+			{
+				_logger.LogInformation("DbContext {DbContext} database exists and already has tables. Skipping table creation because there are no migrations to apply.", typeof(TContext).Name);
+				return;
+			}
 		}
 
-		_logger.LogInformation("DbContext {DbContext} database exists and already has tables. Skipping table creation because there are no migrations to apply.", typeof(TContext).Name);
+		// EnsureCreatedAsync / CreateTablesAsync 会生成外键约束；
+		// 此处全部清除，使数据库只保留列、主键、索引，不含 FOREIGN KEY。
+		// 迁移路径由 NoForeignKeySqlGenerator 保证不生成外键。
+		await DropAllForeignKeysAsync(dbContext);
+	}
+
+	private static async Task DropAllForeignKeysAsync(TContext dbContext)
+	{
+		var fkStatements = await dbContext.Database
+			.SqlQueryRaw<string>("""
+			    SELECT format('ALTER TABLE %I.%I DROP CONSTRAINT %I',
+			                   nsp.nspname, rel.relname, con.conname)
+			    FROM pg_constraint con
+			    JOIN pg_class rel ON rel.oid = con.conrelid
+			    JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+			    WHERE con.contype = 'f'
+			""")
+			.ToListAsync();
+
+		foreach (var sql in fkStatements)
+		{
+			await dbContext.Database.ExecuteSqlRawAsync(sql);
+		}
 	}
 
 	private async Task RunSeedsAsync(TContext dbContext, IServiceProvider serviceProvider)

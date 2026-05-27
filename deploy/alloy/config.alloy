@@ -21,17 +21,9 @@ otelcol.receiver.otlp "default" {
 }
 
 // ── OTLP → Loki Exporter ──────────────────────────────────────────────────
-// 将 OTLP 日志转换为 Loki 条目
+// 将 OTLP 日志转为 Loki 条目，自动映射 OTel resource attributes → Loki labels
+// （如 service.name → service_name、service.instance.id 等）
 otelcol.exporter.loki "default" {
-  forward_to = [loki.process.default.receiver]
-}
-
-// ── Loki Label Processor ───────────────────────────────────────────────────
-// 从 OTel 资源/日志属性提取 Loki label
-loki.process "default" {
-  // stage.otel 自动将 OTel resource attributes → Loki label（如 service.name）
-  stage.otel {}
-
   forward_to = [loki.write.default.receiver]
 }
 
