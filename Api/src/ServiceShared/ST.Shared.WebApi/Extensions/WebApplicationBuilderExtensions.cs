@@ -8,12 +8,14 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore.Migrations;
 using NLog;
 using NLog.Web;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using ST.Infra.EntityFramework.CodeFirst;
+using ST.Infra.EntityFramework.Npgsql;
 using ST.Infra.Redis.Extensions;
 using ST.Infra.Tasks.Extensions;
 using ST.Shared.Configuration;
@@ -158,6 +160,10 @@ public static class WebApplicationBuilderExtensions
 		{
 			module.ConfigureServices(builder.Services);
 		}
+
+		// 在应用级别注册 NoForeignKeySqlGenerator，确保 MigrateAsync() 运行时使用它
+		// （ReplaceService 仅影响 DbContextOptions，Migrator 从应用容器解析 IMigrationsSqlGenerator）
+		builder.Services.AddSingleton<IMigrationsSqlGenerator, NoForeignKeySqlGenerator>();
 
 		return builder;
 	}

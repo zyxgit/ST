@@ -41,6 +41,19 @@ public sealed class InfraModule : ServiceModule
 - 启动时 `UseSharedWebApi` 末尾会执行 `ExecuteCodeFirstExecutorsAsync()`（见 `ST.Shared.WebApi` 扩展），与 CodeFirst/种子机制配合。
 - 新迁移在 **`*.Infra` 项目** 内通过 `dotnet ef migrations add` 生成，提交到仓库。
 
+### 禁止外键（双保险）
+
+项目要求**所有表不建外键**，通过两层机制实现：
+
+| 层 | 机制 | 覆盖路径 |
+|----|------|----------|
+| **模型层** | `EfDbContextBase.OnModelCreating` 调用 `ModelBuilderExtensions.ApplyNoForeignKeys()` | `EnsureCreatedAsync()` / `CreateTablesAsync()` / `MigrateAsync()` |
+| **SQL 层** | `NoForeignKeySqlGenerator`（替代 `IMigrationsSqlGenerator`） | `MigrateAsync()` 迁移生成 |
+
+`ApplyNoForeignKeys()` 在 `OnModelCreating` 中遍历所有实体类型的 `GetForeignKeys()` 并逐一 `RemoveForeignKey()`，使 EF Core 从源头不生成 FK 关系。`NoForeignKeySqlGenerator` 作为兜底，在迁移 SQL 生成时清空 `CreateTableOperation.ForeignKeys` 并忽略 `AddForeignKeyOperation`。
+
+> **注意**：实体上的导航属性仍然保留，但不再产生数据库外键约束。应用层关联查询需自行保证引用完整性。
+
 ### 连接字符串解析（设计时）
 
 设计时工厂继承自 `NpgsqlDesignTimeDbContextFactoryBase<TContext>`，默认通过 `IConfiguration` 按以下优先级获取连接字符串（高覆盖低）：

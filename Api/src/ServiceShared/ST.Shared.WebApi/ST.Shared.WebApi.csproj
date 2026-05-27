@@ -10,6 +10,7 @@
 		<ProjectReference Include="..\ST.Shared.Application\ST.Shared.Application.csproj" />
 		<ProjectReference Include="..\ST.Shared\ST.Shared.csproj" />
 		<ProjectReference Include="..\..\Infrastructures\ST.Infra.EntityFramework\ST.Infra.EntityFramework.csproj" />
+		<ProjectReference Include="..\..\Infrastructures\ST.Infra.EntityFramework.Npgsql\ST.Infra.EntityFramework.Npgsql.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -22,6 +22,7 @@
 
 - 每微服务独立 `DbContext`（如 `AppDbContext`）；连接串来自配置 `Database:ConnectionString`（环境变量 `Database__ConnectionString`）。
 - 实体与配置类放在 `*.Infra`；领域实体在 `*.Domain`。
+- **禁止外键**：`EfDbContextBase.OnModelCreating` 调用 `ApplyNoForeignKeys()` 从模型层移除所有 FK 关系；`NoForeignKeySqlGenerator` 兜底拦截迁移 SQL 生成。双保险保证数据库不含 FOREIGN KEY 约束。
 
 ## 5. Coding Rules
 

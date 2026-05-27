@@ -18,6 +18,8 @@ public sealed class CodeFirstExecutor<TContext> : ICodeFirstExecutor where TCont
 	private readonly ILogger<CodeFirstExecutor<TContext>> _logger;
 	private int _executed;
 
+	private static string? _productVersion;
+
 	public CodeFirstExecutor(
 		IConfiguration configuration,
 		ILogger<CodeFirstExecutor<TContext>> logger)
@@ -75,78 +77,69 @@ public sealed class CodeFirstExecutor<TContext> : ICodeFirstExecutor where TCont
 			_logger.LogInformation("DbContext {DbContext} database does not exist. Creating database and tables.", typeof(TContext).Name);
 			await dbContext.Database.EnsureCreatedAsync();
 		}
+		else if (!await databaseCreator.HasTablesAsync())
+		{
+			_logger.LogInformation("DbContext {DbContext} database exists but has no tables. Creating tables from current model.", typeof(TContext).Name);
+			await databaseCreator.CreateTablesAsync();
+		}
 		else
 		{
-			var hasTables = await databaseCreator.HasTablesAsync();
-			if (!hasTables)
-			{
-				_logger.LogInformation("DbContext {DbContext} database exists but has no tables. Creating tables from current model.", typeof(TContext).Name);
-				await databaseCreator.CreateTablesAsync();
-			}
-			else
-			{
-				_logger.LogInformation("DbContext {DbContext} database exists and already has tables. Skipping table creation because there are no migrations to apply.", typeof(TContext).Name);
-				return;
-			}
+			_logger.LogInformation("DbContext {DbContext} database exists and already has tables. Skipping table creation because there are no migrations to apply.", typeof(TContext).Name);
 		}
 
-		// EnsureCreatedAsync / CreateTablesAsync 会生成外键约束；
-		// 此处全部清除，使数据库只保留列、主键、索引，不含 FOREIGN KEY。
-		// 迁移路径由 NoForeignKeySqlGenerator 保证不生成外键。
-		await DropAllForeignKeysAsync(dbContext);
+		// 外键已在 OnModelCreating.ApplyNoForeignKeys() 中从模型层移除，
+		// EnsureCreatedAsync / CreateTablesAsync 不再生成 FOREIGN KEY 约束。
 	}
 
 	private async Task EnsureDatabaseWithMigrationsAsync(TContext dbContext)
 	{
 		var historyRepo = dbContext.GetService<IHistoryRepository>();
 		var historyExists = await historyRepo.ExistsAsync();
-
 		var allMigrations = dbContext.Database.GetMigrations().ToList();
-		var appliedCount = 0;
 
 		if (historyExists)
 		{
-			appliedCount = (await historyRepo.GetAppliedMigrationsAsync()).Count;
-		}
-
-		if (appliedCount == 0)
-		{
-			var relationalCreator = dbContext.GetService<IRelationalDatabaseCreator>();
-			var hasTables = await relationalCreator.HasTablesAsync();
-
-			if (hasTables)
+			var appliedCount = (await historyRepo.GetAppliedMigrationsAsync()).Count;
+			if (appliedCount >= allMigrations.Count)
 			{
 				_logger.LogInformation(
-					"DbContext {DbContext} has {Count} migration(s) and existing tables but no migration history. Seeding history.",
-					typeof(TContext).Name, allMigrations.Count);
-
-				if (!historyExists)
-				{
-					var createScript = historyRepo.GetCreateIfNotExistsScript();
-					if (!string.IsNullOrEmpty(createScript))
-						await dbContext.Database.ExecuteSqlRawAsync(createScript);
-				}
-
-				var productVersion = typeof(DbContext).Assembly
-					.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-					?.InformationalVersion ?? "10.0.0";
-				foreach (var migrationId in allMigrations)
-				{
-					var row = new HistoryRow(migrationId, productVersion);
-					var insertScript = historyRepo.GetInsertScript(row);
-					await dbContext.Database.ExecuteSqlRawAsync(insertScript);
-				}
-
-				_logger.LogInformation(
-					"DbContext {DbContext} transitioned {Count} migration(s) without executing (tables already exist).",
-					typeof(TContext).Name, allMigrations.Count);
+					"DbContext {DbContext} has {Applied}/{Total} migration(s) applied. Nothing to do.",
+					typeof(TContext).Name, appliedCount, allMigrations.Count);
 				return;
 			}
+
+			// 部分迁移已应用，直接继续
+			_logger.LogInformation(
+				"DbContext {DbContext} is applying migrations. (applied={Applied}/{Total})",
+				typeof(TContext).Name, appliedCount, allMigrations.Count);
+
+			try
+			{
+				await dbContext.Database.MigrateAsync();
+			}
+			catch (PostgresException ex) when (ex.SqlState == "42P07")
+			{
+				await RecoverFromTableExistsAsync(dbContext, historyRepo, allMigrations);
+			}
+
+			return;
 		}
 
+		// 无迁移历史：检查是否已有表（手动建表但未跑迁移）
+		var relationalCreator = dbContext.GetService<IRelationalDatabaseCreator>();
+		if (await relationalCreator.HasTablesAsync())
+		{
+			_logger.LogInformation(
+				"DbContext {DbContext} has {Count} migration(s) and existing tables but no migration history. Seeding history.",
+				typeof(TContext).Name, allMigrations.Count);
+			await SeedMigrationHistoryAsync(dbContext, historyRepo, allMigrations);
+			return;
+		}
+
+		// 全新数据库，直接 Migrate
 		_logger.LogInformation(
-			"DbContext {DbContext} is applying migrations. (historyExists={HistoryExists}, appliedCount={AppliedCount})",
-			typeof(TContext).Name, historyExists, appliedCount);
+			"DbContext {DbContext} is applying migrations to empty database. (count={Count})",
+			typeof(TContext).Name, allMigrations.Count);
 
 		try
 		{
@@ -154,47 +147,56 @@ public sealed class CodeFirstExecutor<TContext> : ICodeFirstExecutor where TCont
 		}
 		catch (PostgresException ex) when (ex.SqlState == "42P07")
 		{
-			_logger.LogWarning(ex, "MigrateAsync failed because table already exists. Seeding migration history and retrying.");
-
-			if (!await historyRepo.ExistsAsync())
-			{
-				var createScript = historyRepo.GetCreateIfNotExistsScript();
-				if (!string.IsNullOrEmpty(createScript))
-					await dbContext.Database.ExecuteSqlRawAsync(createScript);
-			}
-
-			var productVersion = typeof(DbContext).Assembly
-				.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-				?.InformationalVersion ?? "10.0.0";
-			foreach (var migrationId in allMigrations)
-			{
-				var row = new HistoryRow(migrationId, productVersion);
-				await dbContext.Database.ExecuteSqlRawAsync(historyRepo.GetInsertScript(row));
-			}
-
-			_logger.LogInformation(
-				"DbContext {DbContext} recovered from 42P07 by seeding {Count} migration(s).",
-				typeof(TContext).Name, allMigrations.Count);
+			await RecoverFromTableExistsAsync(dbContext, historyRepo, allMigrations);
 		}
 	}
 
-	private static async Task DropAllForeignKeysAsync(TContext dbContext)
+	/// <summary>
+	/// 迁移历史表种子（去重：仅插入尚未记录的迁移 ID）。
+	/// </summary>
+	private async Task SeedMigrationHistoryAsync(
+		TContext dbContext,
+		IHistoryRepository historyRepo,
+		List<string> allMigrations)
 	{
-		var fkStatements = await dbContext.Database
-			.SqlQueryRaw<string>("""
-			    SELECT format('ALTER TABLE %I.%I DROP CONSTRAINT %I',
-			                   nsp.nspname, rel.relname, con.conname)
-			    FROM pg_constraint con
-			    JOIN pg_class rel ON rel.oid = con.conrelid
-			    JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
-			    WHERE con.contype = 'f'
-			""")
-			.ToListAsync();
-
-		foreach (var sql in fkStatements)
+		if (!await historyRepo.ExistsAsync())
 		{
-			await dbContext.Database.ExecuteSqlRawAsync(sql);
+			var createScript = historyRepo.GetCreateIfNotExistsScript();
+			if (!string.IsNullOrEmpty(createScript))
+				await dbContext.Database.ExecuteSqlRawAsync(createScript);
 		}
+
+		var productVersion = GetProductVersion();
+		foreach (var migrationId in allMigrations)
+		{
+			var row = new HistoryRow(migrationId, productVersion);
+			var insertScript = historyRepo.GetInsertScript(row);
+			await dbContext.Database.ExecuteSqlRawAsync(insertScript);
+		}
+	}
+
+	/// <summary>
+	/// 42P07（表已存在）恢复：播种历史表后让 MigrateAsync 可继续。
+	/// </summary>
+	private async Task RecoverFromTableExistsAsync(
+		TContext dbContext,
+		IHistoryRepository historyRepo,
+		List<string> allMigrations)
+	{
+		_logger.LogWarning("MigrateAsync failed with 42P07 (table already exists). Seeding migration history.");
+
+		await SeedMigrationHistoryAsync(dbContext, historyRepo, allMigrations);
+
+		_logger.LogInformation(
+			"DbContext {DbContext} recovered from 42P07 by seeding {Count} migration(s).",
+			typeof(TContext).Name, allMigrations.Count);
+	}
+
+	private static string GetProductVersion()
+	{
+		return _productVersion ??= typeof(DbContext).Assembly
+			.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+			?.InformationalVersion ?? "10.0.0";
 	}
 
 	private async Task RunSeedsAsync(TContext dbContext, IServiceProvider serviceProvider)

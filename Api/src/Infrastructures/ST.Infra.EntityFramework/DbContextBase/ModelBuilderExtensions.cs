@@ -43,6 +43,22 @@ public static class ModelBuilderExtensions
 	}
 
 	/// <summary>
+	/// 移除模型中所有外键关系，使建表/迁移不生成 FOREIGN KEY 约束。
+	/// 与 NoForeignKeySqlGenerator 配合，从模型层和 SQL 层双保险禁止外键。
+	/// </summary>
+	public static void ApplyNoForeignKeys(this ModelBuilder modelBuilder)
+	{
+		var mutableModel = (IMutableModel)modelBuilder.Model;
+		foreach (var entityType in mutableModel.GetEntityTypes().ToList())
+		{
+			foreach (var fk in entityType.GetForeignKeys().ToList())
+			{
+				entityType.RemoveForeignKey(fk);
+			}
+		}
+	}
+
+	/// <summary>
 	/// 默认字符串最大长度
 	/// </summary>
 	/// <param name="modelBuilder"></param>
