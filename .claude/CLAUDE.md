@@ -6,7 +6,7 @@
 
 - **后端**：`Api/`，主解决方案 `Api/src/ST.slnx`；Aspire `Api/src/Aspire/`；网关 `Api/src/Microservices/Gateway/ST.Gateway`（YARP）。
 - **前端**：`Web/`，Vite + Vue3 + TypeScript + Pinia + Axios。
-- **规范真源**：`docs/ai/README.md`（索引）、`docs/ai/common/`、`docs/ai/api/`、`docs/ai/web/`、`docs/ai/skills/`（`*.skill.md` Agent 高密度索引）。
+- **规范真源**：`docs/ai/README.md`（索引）、`docs/ai/common/`、`docs/ai/api/`、`docs/ai/web/`、`docs/ai/skills/`（`*.skill.md` Agent 高密度索引）。路线图开发优先阅读 `docs/ai/common/AgentExecutionGuide.md` 与 `docs/ai/common/DevelopmentRoadmap.md`。
 
 ## 硬约束
 
