@@ -1,15 +1,10 @@
 ---
-description: ST 前端（Web）Vue / TypeScript 规范
-globs: Web/**/*.vue,Web/**/*.ts,Web/**/*.tsx
-alwaysApply: false
+globs: Web/**/*
 ---
 
-# Web 规则
+# ST Vue Web Rules
 
-- 详读 `docs/ai/web/README.md`。
-- HTTP：只使用 `@/lib/request`；`import.meta.env.VITE_API_BASE_URL` 与 `vite.config.ts` 代理一致。
-- 新页面：注册 `adminRoutes`/`publicRoutes`；`meta.public` 或 `meta.permission`；标题 `meta.title`。
-- 权限：使用 `PermissionCode`，与后端声明对齐；`authStore.hasPermission` 做细粒度控制。
-- Naive UI：弹窗/消息用 `@/lib/naive` 的 `useDiscrete()`（`main.ts` 已 `setupNaiveDiscreteApi()`）。
-
-功能交付时同步文档：见 `docs/ai/common/DocumentationSync.md` 与 `docs/ai/web/AI-Rules.md`。
+- Read `docs/frontend/README.md` and `docs/skills/frontend.md`.
+- Use the shared request layer in `Web/src/lib/request.ts`.
+- Keep routes, menus, and permission codes aligned with backend Identity.
+- For frontend changes, prefer `cd Web && pnpm build`.

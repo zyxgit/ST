@@ -1,20 +1,21 @@
 # ST Monorepo — Agent Instructions
 
-This file is the repository-level instruction entry for Codex-style coding agents. It applies to the whole repository.
+This file applies to the whole repository.
 
 ## Must-read documents before coding
 
-1. `docs/ai/AI-RULES.md` — mandatory global rules.
-2. `docs/ai/common/AgentExecutionGuide.md` — how to split roadmap work into AI-executable tasks.
-3. `docs/ai/common/DevelopmentRoadmap.md` — phased roadmap for high-concurrency and cross-service transaction features.
-4. Task-specific docs under `docs/ai/api/`, `docs/ai/web/`, and `docs/ai/skills/`.
+1. `docs/ai/README.md` — mandatory AI execution rules, demand review, task splitting, uncertainty handling, documentation sync.
+2. `docs/README.md` — documentation map and truth-source hierarchy.
+3. Task-specific docs under `docs/architecture/`, `docs/backend/`, `docs/frontend/`, `docs/database/`, `docs/devops/`, and `docs/skills/`.
 
 ## Execution discipline
 
+- Before coding, analyze whether the user's request is reasonable. If it is unreasonable, explain why and propose a better option. Only proceed with the unreasonable approach after the user confirms a second time.
+- If any requirement, business rule, path, service boundary, or implementation direction is uncertain, ask the user before coding. Do not guess.
 - Do not implement an entire roadmap phase in one prompt. Split work into small tasks with clear write scope, acceptance criteria, and tests.
 - Before editing, inspect existing code with `rg` and follow current project patterns.
-- For any feature change, update documentation in the same change set according to `docs/ai/common/DocumentationSync.md`.
-- For new services, wire Aspire AppHost, Gateway routing, Docker Compose, configuration, migrations, and docs in the same task or in explicitly sequenced subtasks.
+- For any feature change, update documentation in the same change set.
+- For new services, wire Aspire AppHost, Gateway routing, Docker Compose, configuration, migrations, and docs in the same task or explicitly sequenced subtasks.
 - Do not commit secrets, production connection strings, JWT signing keys, or local-only environment files.
 
 ## Validation baseline
