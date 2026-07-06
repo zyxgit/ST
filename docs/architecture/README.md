@@ -12,7 +12,7 @@ ST 采用 **单仓双应用**：`Api` 为 .NET 微服务与共享基础设施；
 | Aspire | `Api/src/Aspire/` | 本地编排、服务发现、健康检查 |
 | 微服务 | `Api/src/Microservices/*/` | 每服务 `*.Api` / `*.Application` / `*.Domain` / `*.Infra` |
 | 共享 | `Api/src/ServiceShared/` | `ST.Shared.WebApi` 启动与中间件、`ST.Shared` 原语 |
-| 基础设施 | `Api/src/Infrastructures/` | EF、Redis、EventBus、Tasks 等 |
+| 基础设施 | `Api/src/Infrastructures/` | EF、Redis、EventBus、Tasks、ReliableMessaging 等 |
 | 网关 | `Api/src/Microservices/Gateway/ST.Gateway` | YARP 反向代理、限流、文档入口；路由：`/api/files/*` → FileUpload、`/api/identity/*` → Identity、`/api/operationlog/*` → OperationLog |
 | 文件上传 | `Api/src/Microservices/FileUpload/` | 文件上传与管理（本地存储，可扩展 MinIO/OSS） |
 

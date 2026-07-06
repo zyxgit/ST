@@ -18,4 +18,14 @@ public interface IUserContext
 	IReadOnlyList<string> Roles { get; }
 
 	IReadOnlyList<string> Permissions { get; }
+
+	/// <summary>
+	/// 当前租户 ID（来自 JWT claim "tid"）
+	/// </summary>
+	Guid? TenantId { get; }
+
+	/// <summary>
+	/// 当前租户编码（来自 JWT claim "tcode"）
+	/// </summary>
+	string? TenantCode { get; }
 }

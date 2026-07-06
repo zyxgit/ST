@@ -184,6 +184,12 @@ public static class WebApplicationBuilderExtensions
 
 	public static WebApplication UseSharedWebApi(this WebApplication app, params ISharedModule[] modules)
 	{
+		// 性能诊断中间件（仅 Development 环境，放在管线最外层）
+		if (app.Environment.IsDevelopment())
+		{
+			app.UseMiddleware<PerformanceDiagnosticMiddleware>();
+		}
+
 		// Security headers（在 GlobalException 之前设置，确保异常响应也带上头信息）
 		app.Use(async (context, next) =>
 		{
@@ -199,10 +205,9 @@ public static class WebApplicationBuilderExtensions
 		app.UseMiddleware<RequestLoggingMiddleware>();
 		// Configure the HTTP request pipeline.
 
-		app.UseHttpsRedirection();
-
 		if (!app.Environment.IsDevelopment())
 		{
+			app.UseHttpsRedirection();
 			app.UseHsts();
 		}
 

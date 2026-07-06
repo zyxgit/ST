@@ -4,6 +4,7 @@ using System.Xml.Linq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using ST.Infra.Repository.Entities;
+using ST.Shared;
 
 namespace ST.Infra.EntityFramework.DbContextBase;
 
@@ -39,6 +40,64 @@ public static class ModelBuilderExtensions
 				modelBuilder.Entity(entityType.ClrType)
 					.HasQueryFilter(lambda);
 			}
+		}
+	}
+
+	/// <summary>
+	/// 租户数据隔离过滤器。
+	/// 对实现 ITenantEntity 的实体自动附加 WHERE tenant_id = @currentTenantId。
+	/// 当 TenantContext.CurrentTenantId 为 null 时不过滤（超级管理员/后台任务场景）。
+	/// 若实体同时实现 ISoftDelete，则与软删除过滤器合并为 AND。
+	/// </summary>
+	public static void ApplyTenantQueryFilter(this ModelBuilder modelBuilder)
+	{
+		foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+		{
+			if (!typeof(ITenantEntity).IsAssignableFrom(entityType.ClrType))
+				continue;
+
+			var parameter = Expression.Parameter(entityType.ClrType, "e");
+
+			// e.TenantId
+			var tenantIdProperty = Expression.Property(parameter, nameof(ITenantEntity.TenantId));
+
+			// TenantContext.CurrentTenantId
+			var currentTenantId = Expression.Property(null, typeof(TenantContext), nameof(TenantContext.CurrentTenantId));
+
+			// e.TenantId == (Guid)TenantContext.CurrentTenantId
+			// TenantId 是 Guid（非空），CurrentTenantId 是 Guid?（可空），需要类型转换
+			var tenantIdAsNullable = Expression.Convert(tenantIdProperty, typeof(Guid?));
+			var tenantMatch = Expression.Equal(tenantIdAsNullable, currentTenantId);
+
+			// TenantContext.CurrentTenantId == null （null 时不过滤）
+			var tenantIsNull = Expression.Equal(currentTenantId, Expression.Constant(null, typeof(Guid?)));
+
+			// TenantContext.CurrentTenantId == null || e.TenantId == TenantContext.CurrentTenantId
+			var combined = Expression.OrElse(tenantIsNull, tenantMatch);
+
+			// 如果实体同时有 ISoftDelete，合并已有过滤器
+			if (typeof(ISoftDelete).IsAssignableFrom(entityType.ClrType))
+			{
+				// e.IsDeleted == false
+				var propertyMethod = typeof(EF)
+					.GetMethod(nameof(EF.Property))!
+					.MakeGenericMethod(typeof(bool));
+
+				var isDeletedProperty = Expression.Call(
+					propertyMethod,
+					parameter,
+					Expression.Constant(nameof(ISoftDelete.IsDeleted)));
+
+				var softDeleteFilter = Expression.Equal(isDeletedProperty, Expression.Constant(false));
+
+				// (e.IsDeleted == false) && (tenantId == null || e.TenantId == tenantId)
+				combined = Expression.AndAlso(softDeleteFilter, combined);
+			}
+
+			var lambda = Expression.Lambda(combined, parameter);
+
+			modelBuilder.Entity(entityType.ClrType)
+				.HasQueryFilter(lambda);
 		}
 	}
 

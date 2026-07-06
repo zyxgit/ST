@@ -46,6 +46,7 @@ public static class ServiceCollectionExtensions
 		services.AddHttpContextAccessor();
 		services.AddScoped<IUserContext, HttpUserContext>();
 		services.AddScoped<ST.Infra.Repository.Interface.ICurrentUserIdAccessor, HttpCurrentUserIdAccessor>();
+		services.AddScoped<ICurrentTenantAccessor, HttpCurrentTenantAccessor>();
 		return services;
 	}
 

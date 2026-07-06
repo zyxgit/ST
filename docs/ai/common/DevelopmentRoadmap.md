@@ -153,6 +153,16 @@ inbox_messages
 - 消费端必须基于 `MessageId + Consumer` 做幂等去重。
 - 消费失败时记录错误和重试次数。
 
+> **✅ Task 1 已完成**（2026-06-11）：已创建 `ST.Infra.ReliableMessaging` 项目，包含 OutboxMessage、InboxMessage 实体模型、OutboxStatus 枚举、IEntityTypeConfiguration、ReliableMessagingDbContext、IOutboxStore / IInboxStore 接口及 EF Core 实现。详见 [`docs/ai/api/ReliableMessaging.md`](../api/ReliableMessaging.md)。
+
+> **✅ Task 2 已完成**（2026-06-23）：已实现 Outbox Publisher 后台服务，包含 `OutboxPublisherOptions` 配置模型、`IOutboxPublisher` 接口、`RabbitMqOutboxPublisher` RabbitMQ 投递实现、`OutboxPublisherHostedService` 后台任务（PeriodicTimer 轮询、指数退避重试、最大重试次数限制）。`IOutboxStore` 新增 `GetRetryableAsync` 方法同时查询 Pending 和可重试的 Failed 消息。详见 [`docs/ai/api/ReliableMessaging.md`](../api/ReliableMessaging.md#outbox-publisher-工作流程)。
+
+> **✅ Task 3 已完成**（2026-06-23）：已创建 Order 微服务（Api/Application/Domain/Infra 四层），包含 Order、OrderItem、SagaInstance、SagaStep 实体，OrderDbContext（集成 Outbox/Inbox），OrdersController（创建/查询/取消订单），OrderService（业务数据与 Outbox 消息同一事务提交）。同步创建 `ST.Infra.IntegrationEvents` 共享项目，定义 OrderCreatedIntegrationEvent 和 OrderCanceledIntegrationEvent。Gateway 路由、Aspire 编排、ST.slnx 已更新。详见 [`docs/ai/api/Order.md`](../api/Order.md) 和 [`docs/ai/api/IntegrationEvents.md`](../api/IntegrationEvents.md)。
+
+> **✅ Task 4 已完成**（2026-06-23）：已创建 Inventory 微服务（Api/Application/Domain/Infra 四层），包含 Sku、InventoryFreezeRecord 实体，InventoryDbContext（集成 Outbox/Inbox），InventoryController（创建 SKU、增加库存、查询库存）。实现 `OrderCreatedHandler` 和 `OrderCanceledHandler` 两个事件处理器（首次实现 `IIntegrationEventHandler`），通过 DB 乐观锁 `WHERE available >= quantity` 防超卖。Order 服务同步增加 `InventoryFrozenHandler` 和 `InventoryFreezeFailedHandler`，消费 Inventory 回执事件更新订单状态。完整事件链路：OrderCreated → InventoryFreeze → InventoryFrozen/InventoryFreezeFailed → Order 状态更新。Gateway 路由、Aspire 编排已更新。详见 [`docs/ai/api/Inventory.md`](../api/Inventory.md)。
+
+> **✅ Task 5 已完成**（2026-06-23）：已创建 Payment 微服务（Api/Application/Domain/Infra 四层），包含 Payment 实体，PaymentDbContext（集成 Outbox/Inbox），PaymentsController（模拟支付成功/失败/查询）。实现 `OrderCreatedHandler` 消费订单创建事件创建待支付记录。Order 服务同步增加 `PaymentSucceededHandler` 和 `PaymentFailedHandler`，消费支付回执事件更新订单状态（Paid/Cancel）并触发 Saga 完成或补偿。完整 Saga 流程已打通：OrderCreated → InventoryFreeze → InventoryFrozen → Payment → PaymentSucceeded → OrderPaid（成功路径）；PaymentFailed → OrderCanceled → InventoryReleased（失败路径）。Gateway 路由、Aspire 编排已更新。详见 [`docs/ai/api/Payment.md`](../api/Payment.md)。
+
 #### 3. 库存防超卖
 
 Inventory Service 至少提供两层防护：
@@ -165,8 +175,10 @@ Inventory Service 至少提供两层防护：
 ```text
 inventory:sku:{skuId}:available
 inventory:sku:{skuId}:frozen
-inventory:order:{orderId}:freeze
+inventory:sku:{skuId}:sold
 ```
+
+> **✅ 库存防超卖已完成**（2026-06-24）：已实现 Redis Lua + DB 乐观锁双层防护。`IInventoryRedisService` 接口和 `InventoryRedisService` 实现位于 `ST.Infra.Redis/Inventory/`，提供 `TryFreezeAsync`、`ReleaseAsync`、`ConfirmSoldAsync`、`SyncStockAsync` 原子操作。Inventory 服务冻结流程：Redis Lua 预扣 → DB 乐观锁 → 成功；Redis 预扣失败直接返回（不打 DB）；DB 失败自动回滚 Redis。SKU 创建和增加库存时同步快照到 Redis。详见 [`docs/ai/api/Inventory.md`](../api/Inventory.md#库存防超卖双层防护) 和 [`docs/ai/api/Redis.md`](../api/Redis.md#库存预扣键空间)。
 
 #### 4. 延迟关单
 
@@ -177,6 +189,8 @@ inventory:order:{orderId}:freeze
 - Outbox 定时消息。
 
 第一版推荐使用后台任务扫描，稳定且容易调试；第二版再升级为 RabbitMQ 延迟消息。
+
+> **✅ 延迟关单已完成**（2026-06-24）：已实现 `OrderTimeoutCheckService` 后台任务，定期扫描超过支付时限的 Pending / InventoryFrozen 订单并自动取消。配置项 `OrderTimeout` 支持启用/禁用、检查间隔、超时时间、批量大小。取消流程通过 `OrderService.CancelOrderAsync` 触发 Outbox → Inventory 释放冻结库存。详见 [`docs/ai/api/Order.md`](../api/Order.md#延迟关单超时自动取消)。
 
 ### 推荐 API
 
@@ -197,9 +211,13 @@ POST /api/payments/mock/fail
 
 - 能通过 Gateway 完成创建订单、冻结库存、模拟支付、订单变为已支付。
 - 支付失败或超时后，订单取消，库存释放。
-- 重复投递同一消息不会重复扣库存或重复改订单。
+- 重复投遣同一消息不会重复扣库存或重复改订单。
 - RabbitMQ 暂时不可用时，业务数据不丢失，Outbox 可恢复投递。
 - 提供至少一个并发下单压测脚本。
+
+> **✅ 并发下单压测脚本已完成**（2026-06-24）：`tools/load-tests/order-create.sh`，支持自定义并发数、总请求数、Gateway 地址。自动创建 SKU、增加库存、并发下单，统计成功率、TPS、P50/P95/P99 响应时间。用法：`bash tools/load-tests/order-create.sh 50 200 http://localhost:25000`。
+
+> **✅ Docker Compose 已补齐**（2026-06-24）：`deploy/docker-compose.yml` 已添加 `st-ms-order-api`、`st-ms-inventory-api`、`st-ms-payment-api` 三个服务，包含数据库连接、Redis、RabbitMQ、OTEL 配置。Gateway 下游路由和依赖已同步更新。
 
 ### 阶段成果说明
 
@@ -246,6 +264,8 @@ POST /api/payments/mock/fail
 }
 ```
 
+> **✅ Task 1 已完成**（2026-06-22）：已在 `ST.Infra.Redis` 中新增限流抽象，包含 `RateLimitRule` 配置模型、`IRateLimiter` 接口、`RedisRateLimiter`（基于 Lua 滑动窗口）实现及 `AddRedisRateLimiting()` DI 扩展。详见 [`docs/ai/api/Redis.md`](../api/Redis.md#限流键空间)。
+
 #### 2. 权限缓存
 
 为 Identity 增加权限缓存：
@@ -255,6 +275,10 @@ auth:user:{userId}:permissions
 auth:user:{userId}:menus
 auth:role:{roleId}:permissions
 ```
+
+> **✅ Task 2 已完成**（2026-06-22）：已在 Gateway 中接入分布式限流，支持 `Mode = InMemory | Redis` 配置开关，支持按 IP/User/Path 多维度分区，支持自定义规则（登录、注册、文件上传等接口独立限流）。详见 [`docs/ai/api/Gateway.md`](../api/Gateway.md)。
+
+> **✅ Task 3 已完成**（2026-06-24）：已在 Identity 服务中实现权限缓存，登录/刷新 Token 时将角色和权限缓存到 Redis HashSet（`auth:user:{userId}:permissions`、`auth:user:{userId}:roles`），TTL 与 Access Token 生命周期一致。刷新 Token 时优先读缓存，命中则跳过 DB 四表联查。用户角色变更或角色/权限变更时主动删除缓存。详见 [`docs/ai/api/Redis.md`](../api/Redis.md#权限缓存键空间) 和 [`docs/ai/api/Auth.md`](../api/Auth.md#权限缓存)。
 
 要求：
 
@@ -270,6 +294,8 @@ auth:role:{roleId}:permissions
 - 滑动窗口失败次数统计。
 - 登录风控日志。
 - 管理后台查看锁定原因。
+
+> **✅ Task 4 已完成**（2026-06-24）：已实现多维度登录失败限流（IP+邮箱 10 次/10 分钟、IP 总计 50 次/10 分钟、用户 5 次/30 分钟），User 实体新增 `LockReason` 和 `LockedAtUtc` 字段追踪锁定原因，User 详情 API 返回锁定信息。详见 [`docs/ai/api/Auth.md`](../api/Auth.md#登录安全增强) 和 [`docs/ai/api/Redis.md`](../api/Redis.md#登录限流键空间)。
 
 ### 验收标准
 
@@ -327,17 +353,23 @@ file_upload_chunks
 - created_at_utc
 ```
 
+> **✅ Task 1 已完成**（2026-06-22）：已创建 `FileUploadSession`、`FileUploadChunk` 实体、`UploadStatus` 枚举、`IMultipartUploadService` 接口及 `MultipartUploadService` 实现、`MultipartFileController` 控制器。支持分片上传初始化、状态查询、分片上传、完成上传、秒传检查、取消上传。详见 [`docs/ai/api/Upload.md`](../api/Upload.md#分片上传)。
+
 #### 2. 秒传与去重
 
 - 客户端上传前先提交文件 Hash。
 - 服务端存在相同 Hash 且文件有效时直接返回已有文件信息。
 - 对公共文件和私有文件分别考虑权限边界。
 
+> **✅ 秒传与去重已完成**（2026-06-24）：`CheckByHashAsync` 同时查询 `UploadSessions`（已完成的分片上传）和 `FileEntity`（普通上传的文件），`FileEntity` 新增 `FileHash` 字段并建立索引。响应增加 `FileSize` 字段。详见 [`docs/ai/api/Upload.md`](../api/Upload.md#秒传)。
+
 #### 3. 断点续传
 
 - Redis Bitmap 或 Set 记录已上传分片。
 - `status` 接口返回缺失分片列表。
 - 重复上传同一分片必须幂等。
+
+> **✅ Task 2 已完成**（2026-06-22）：已将分片上传状态记录从数据库改为 Redis Set，提升断点续传查询性能。Redis 键格式：`file:upload:{uploadId}:chunks`（Set 类型，24 小时过期）。支持幂等检查、状态查询优化、数据库回退。详见 [`docs/ai/api/Upload.md`](../api/Upload.md#redis-键空间)。
 
 #### 4. 异步合并
 
@@ -346,11 +378,15 @@ file_upload_chunks
 - 合并成功后写最终文件记录。
 - 失败时可重试或清理临时分片。
 
+> **✅ 异步合并已完成**（2026-06-24）：`CompleteUploadAsync` 将会话标记为 `Merging` 后立即返回，`MultipartMergeService` 后台服务通过 `PeriodicTimer` 定期扫描 `Merging` 状态会话并执行合并。支持配置化轮询间隔、批处理大小、最大重试次数（指数标记重试）。合并完成后创建 `FileEntity` 并关联 `FileId`。详见 [`docs/ai/api/Upload.md`](../api/Upload.md#异步合并)。
+
 #### 5. 签名下载 URL
 
 - 私有文件生成短期有效下载 URL。
 - 签名包含文件 ID、过期时间、用户 ID 或租户 ID。
 - 防止直接暴露存储路径。
+
+> **✅ Task 4 已完成**（2026-06-22）：已实现签名下载 URL 功能，包含 `ISignedUrlService` 接口和 `SignedUrlService` 实现（HMAC-SHA256 签名）、生成签名 URL 接口、签名 URL 下载接口（无需认证）。支持自定义过期时间、防篡改验证、用户绑定。详见 [`docs/ai/api/Upload.md`](../api/Upload.md#签名下载-url)。
 
 ### 验收标准
 
@@ -381,6 +417,8 @@ file_upload_chunks
 - 每 N 条或每 T 秒批量写库。
 - 批量失败时降级为单条写入定位毒丸消息。
 
+> **✅ Task 1 已完成**（2026-06-22）：已创建 `BatchOperationLogConsumerHostedService` 批量消费者，支持配置化 prefetch、批量大小、刷新间隔。内存缓冲队列，每 N 条或每 T 秒批量写库。批量失败时降级为单条写入定位毒丸消息。详见 [`docs/ai/api/OperationLog.md`](../api/OperationLog.md#批量消费)。
+
 #### 2. 死信队列
 
 新增：
@@ -392,12 +430,18 @@ file_upload_chunks
 - 死信消息查询 API。
 - 死信消息重放 API。
 
+> **✅ Task 2 已完成**（2026-06-22）：已创建 `DeadLetterMessage` 实体、`DeadLetterService` 服务。消费失败的消息保存到数据库死信表，支持查询和重放。批量消费者集成死信队列，单条写入失败时自动保存到死信表。详见 [`docs/ai/api/OperationLog.md`](../api/OperationLog.md#死信队列)。
+
+> **✅ Task 3 已完成**（2026-06-22）：已创建 `DeadLetterController` 控制器，提供死信消息查询（分页）、详情、单条重放、批量重放 API。包含 `IDeadLetterQueryService`、`IDeadLetterService` 接口及实现。详见 [`docs/ai/api/OperationLog.md`](../api/OperationLog.md#api-端点)。
+
 #### 3. 日志归档
 
 - 近期日志留在 PostgreSQL。
 - 历史日志归档到 MinIO / OSS。
 - 后台任务按时间归档。
 - 查询接口按时间范围路由到不同存储。
+
+> **✅ Task 4 已完成**（2026-06-22）：已创建 `OperationLogArchiveJob` 后台任务、`LocalArchiveService` 归档服务。支持按天数阈值自动归档到本地文件系统，查询接口自动合并数据库和归档数据。详见 [`docs/ai/api/OperationLog.md`](../api/OperationLog.md#日志归档)。
 
 #### 4. 可观测性面板
 
@@ -408,6 +452,8 @@ Grafana 面板建议包含：
 - DLQ 堆积量。
 - 平均落库耗时。
 - API 请求 TraceId 关联日志。
+
+> **✅ Task 5 已完成**（2026-06-25）：已实现 OperationLog Consumer 全链路可观测性。新增 `OperationLogMetrics` 集中定义自定义指标（Meter: `ST.OperationLog.Consumer`），包含消息接收、批量写入、单条降级、写入失败、死信写入/重放、归档等 Counter 和批量大小、刷新耗时等 Histogram。Consumer `Program.cs` 接入 OpenTelemetry（metrics + OTLP exporter）。部署层新增 Prometheus 服务（`prom/prometheus:v3.3.0`），Alloy metrics 管道已启用（batch processor → prometheus exporter → remote_write），Grafana 数据源自动配置 Prometheus。Dashboard `st-operationlog.json` 包含 10 个面板：消息接收速率、批量写入成功、单条降级、写入失败、死信写入、死信重放、平均批量大小、刷新耗时 P50/P95/P99、归档统计、消息处理速率对比。详见 [`docs/ai/api/OperationLog.md`](../api/OperationLog.md#可观测性面板)。
 
 ### 验收标准
 
@@ -441,6 +487,8 @@ Grafana 面板建议包含：
 - 文件上传吞吐量。
 - OperationLog 消费延迟。
 
+> **✅ 业务指标已完成**（2026-06-25）：已为 Order、Inventory、Payment、FileUpload 四个业务服务和 Outbox 基础设施创建自定义 OpenTelemetry 指标。OrderMetrics（下单成功/取消/Saga 补偿/下单耗时）、InventoryMetrics（冻结成功/失败/释放/冻结耗时）、PaymentMetrics（支付成功/失败）、FileUploadMetrics（上传成功/失败/文件大小）、OutboxMetrics（发布成功/失败/重试/发布耗时）。各服务 Program.cs 已注册对应 Meter。
+
 #### 2. Trace 贯通
 
 要求：
@@ -449,6 +497,8 @@ Grafana 面板建议包含：
 - 集成事件携带 TraceId / CorrelationId。
 - OperationLog 记录 TraceId、SpanId。
 - 日志、链路、业务数据可通过 TraceId 关联。
+
+> **✅ Trace 贯通已完成**（2026-06-25）：IntegrationEvent 基类新增 CorrelationId 和 TraceId 字段（构造函数自动从 Activity.Current 提取）。OutboxMessage 新增 TraceId 字段。RabbitMqEventBus 发布时将 TraceId 写入 BasicProperties.CorrelationId，消费时从 CorrelationId 创建 Activity 恢复 TraceContext。RabbitMqOutboxPublisher 和 RabbitMqOperationLogSink 同步传播 CorrelationId。Gateway 新增 CorrelationId 中间件（读取/生成/透传 X-Correlation-Id，支持从 traceparent 提取）。
 
 #### 3. 压测脚本
 
@@ -462,6 +512,8 @@ tools/load-tests/
 - operationlog-producer.k6.js
 ```
 
+> **✅ 压测脚本已完成**（2026-06-25）：已创建 4 个 k6 压测脚本。order-create.k6.js（阶梯 10→50→100 VU 并发下单）、gateway-rate-limit.k6.js（50 VU 高频请求触发限流验证 429）、file-multipart-upload.k6.js（10 VU × 5 次文件上传）、operationlog-producer.k6.js（20 VU 触发审计日志生成）。每个脚本包含自定义 Trend/Counter 指标和 handleSummary 输出。
+
 #### 4. Grafana Dashboard
 
 建议新增：
@@ -473,6 +525,8 @@ deploy/grafana/dashboards/
 - st-operationlog.json
 - st-gateway.json
 ```
+
+> **✅ Grafana Dashboard 已完成**（2026-06-25）：已创建 3 个 Dashboard（st-operationlog.json 在第四阶段已完成）。st-overview.json（8 面板：各服务请求速率、P95 延迟、错误率、下单/支付业务指标、Outbox 趋势、GC/CPU、操作日志消费、文件上传/库存冻结）。st-order-saga.json（12 面板：下单速率、Saga 补偿、冻结/支付统计、下单/冻结/Outbox 耗时 P50/P95/P99、Saga 事件链路速率、Outbox 成功率）。st-gateway.json（9 面板：请求速率、活跃请求、P95 延迟、错误率、延迟分布、按状态码分布、下游请求延迟/分布）。Dashboard 之间通过链接互相导航。
 
 ### 验收标准
 
@@ -508,8 +562,10 @@ tenants
 tenant_users
 - tenant_id
 - user_id
-- role
+- role_in_tenant
 ```
+
+> **✅ Task 1 已完成**（2026-06-30）：已创建 Tenant、TenantUser、TenantQuota 实体，IdentityDbContext 新增 DbSet。TenantsController 提供 12 个 REST API 端点（CRUD + 用户关联 + 配额管理）。详见 [`docs/ai/common/MultiTenant.md`](../common/MultiTenant.md)。
 
 #### 2. 数据隔离
 
@@ -520,6 +576,16 @@ tenant_users
 - 后台任务和 Consumer 显式传递 TenantId。
 - Redis 键统一包含租户维度。
 
+> **✅ Task 2 已完成**（2026-06-30）：已实现 `ICurrentTenantAccessor` 接口和 `HttpCurrentTenantAccessor` 实现。JWT 新增 `tid` / `tcode` claim。`IUserContext` 新增 `TenantId` / `TenantCode` 属性。`AccessTokenRequest` 新增租户字段。DI 注册完成。
+
+> **✅ Task 3 已完成**（2026-06-30）：已创建 `ITenantEntity` 标记接口和 `TenantDomainEntity` 基类。`EfDbContextBase` 新增 `ApplyTenantQueryFilter()` 全局过滤器（自动合并 ISoftDelete）。`NpgsqlEfDbContextBase.FillAuditFields()` 自动填充 TenantId。`TenantContext` 基于 `AsyncLocal<Guid?>` 实现请求级租户流转。
+
+> **✅ Task 5 已完成**（2026-06-30）：登录接口新增可选 `tenant_code` 参数，验证用户-租户关联后 JWT 写入 `tid` / `tcode`。RefreshToken 持久化租户信息，刷新时自动恢复。权限缓存键增加租户维度（`t:{tid}:auth:user:{userId}:permissions`）。
+
+> **✅ Task 6 已完成**（2026-06-30）：Order、Sku、Payment、FileEntity 实现 `ITenantEntity`，各 DbContext 自动应用租户过滤器。新增实体自动填充 TenantId。
+
+> **✅ Task 10 已完成**（2026-06-30）：`IntegrationEvent` 基类新增 `TenantId` 字段（构造函数自动从 TenantContext 提取）。RabbitMQ 发布时写入 `x-tenant-id` header，消费时自动恢复 TenantContext。OperationLog 实体新增 `TenantId`，全链路传播。
+
 #### 3. 租户级配额
 
 - 用户数上限。
@@ -528,6 +594,8 @@ tenant_users
 - 文件上传大小上限。
 - 订单 / 消息等业务资源上限。
 
+> **✅ Task 9 已完成**（2026-06-30）：已创建 `ITenantQuotaService` 接口和 `TenantQuotaServiceImpl` 实现。OrderService 创建订单时检查每日订单配额，FileAppService 上传时检查单文件大小配额。配额限制从 IdentityDbContext 查询，Redis 缓存 1 小时。
+
 #### 4. 租户级限流
 
 Gateway 支持按租户限流：
@@ -535,6 +603,8 @@ Gateway 支持按租户限流：
 ```text
 rate:{tenantId}:{route}:{window}
 ```
+
+> **✅ Task 7+8 已完成**（2026-06-30）：`RateLimitPartitionBy` 枚举新增 `Tenant` / `TenantUser` / `TenantPath`。Gateway `RateLimitingMiddleware` 支持租户维度分区，从 JWT claim `tid` 提取租户 ID。InventoryRedisService 键自动加入租户前缀。Gateway.md 文档已更新。
 
 ### 验收标准
 

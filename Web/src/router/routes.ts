@@ -43,6 +43,13 @@ export const adminRoutes: RouteRecordRaw[] = [
         meta: { title: '菜单权限', permission: PermissionCode.MenuQuery },
       },
       {
+        path: 'system/tenants',
+        name: 'tenants',
+        component: () => import('@/views/admin/TenantsView.vue'),
+        alias: ['/tenants'],
+        meta: { title: '租户管理', permission: PermissionCode.TenantQuery },
+      },
+      {
         path: 'operation-logs',
         name: 'operation-logs',
         component: () => import('@/views/admin/OperationLogsView.vue'),

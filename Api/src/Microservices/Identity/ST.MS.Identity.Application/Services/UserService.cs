@@ -12,12 +12,14 @@ using ST.Infra.Tasks.Abstractions;
 using ST.MS.Identity.Application.Dtos.User;
 using ST.MS.Identity.Application.IServices;
 using ST.MS.Identity.Application.Options;
+using ST.MS.Identity.Domain.Aggregates.TenantAggregate;
 using ST.MS.Identity.Domain.Aggregates.UserAggregate;
 using ST.MS.Identity.Domain.Aggregates.UserAggregate.ValueObject;
 using ST.MS.Identity.Domain.Enums;
 using ST.MS.Identity.Domain.Services;
 using ST.MS.Identity.Infra.DbContext;
 using ST.Shared.Application.Dtos;
+using Microsoft.Extensions.Configuration;
 using ST.Shared.Application.Services;
 using ST.Shared.Security;
 using ST.Shared.Validation;
@@ -39,6 +41,7 @@ public class UserService : AbstractAppService, IUserService
 	private readonly IEventBus _eventBus;
 	private readonly ILogger<UserService> _logger;
 	private readonly IdentitySessionOptions _sessionOptions;
+	private readonly IConfiguration _configuration;
 
 	public UserService(
 		CodeManager codeManager,
@@ -50,6 +53,7 @@ public class UserService : AbstractAppService, IUserService
 		IUserContext userContext,
 		IRefreshTokenLifetimeProvider refreshTokenLifetimeProvider,
 		IOptions<IdentitySessionOptions> sessionOptions,
+		IConfiguration configuration,
 		IEventBus eventBus,
 		ILogger<UserService> logger)
 	{
@@ -62,6 +66,7 @@ public class UserService : AbstractAppService, IUserService
 		_userContext = userContext;
 		_refreshTokenLifetimeProvider = refreshTokenLifetimeProvider;
 		_sessionOptions = sessionOptions.Value;
+		_configuration = configuration;
 		_eventBus = eventBus;
 		_logger = logger;
 		_redis = redisCacheManager.GetDatabase();
@@ -126,6 +131,11 @@ public class UserService : AbstractAppService, IUserService
 		if (input.Password.IsNullOrEmpty())
 			throw new BusinessException("密码不能为空");
 
+		var loginIp = GetClientIpOrUnknown();
+
+		// IP+邮箱 和 IP 总计限流检查
+		await CheckLoginRateLimitAsync(loginIp, input.Email);
+
 		var user = await _dbContext.Users
 			.Include(u => u.UserRoles)
 			.ThenInclude(ur => ur.Role)
@@ -139,27 +149,55 @@ public class UserService : AbstractAppService, IUserService
 
 		if (!PasswordHelper.VerifyPassword(input.Password, user.Password.Hash, user.Password.Salt))
 		{
-			var failCount = await SetLoginFailCountAsync(user.Id);
+			// 记录失败：IP+邮箱、IP 总计、用户 三个维度
+			await RecordLoginFailureAsync(loginIp, input.Email, user.Id);
 
-			if (failCount > 5)
+			// 用户维度：30 分钟内失败 5 次锁定
+			var userFailCount = await GetUserLoginFailCountAsync(user.Id);
+			if (userFailCount >= UserFailLimit)
 			{
-				user.Disable();
+				user.Disable("login_fail_exceeded");
 				await _dbContext.SaveChangesAsync();
-				await RemoveLoginFailCountAsync(user.Id);
+				await ClearUserLoginFailCountAsync(user.Id);
 				throw new BusinessException("账号已锁定");
 			}
 
 			throw new BusinessException("密码错误");
 		}
 
-		await RemoveLoginFailCountAsync(user.Id);
+		// 登录成功，清除用户失败计数
+		await ClearUserLoginFailCountAsync(user.Id);
 
-		var (accessToken, expiresAt) = CreateAccessToken(user);
-		var (refreshToken, refreshExpiresAt, refreshTokenEntity) = CreateRefreshTokenEntity(user.Id);
+		// 租户验证
+		Guid? tenantId = null;
+		string? tenantCode = null;
+		if (!string.IsNullOrWhiteSpace(input.TenantCode))
+		{
+			tenantCode = input.TenantCode.Trim().ToLowerInvariant();
+			var tenant = await _dbContext.Tenants
+				.FirstOrDefaultAsync(x => x.Code == tenantCode && !x.IsDeleted)
+				?? throw new BusinessException("租户不存在");
+
+			if (tenant.Status != TenantStatus.Active)
+				throw new BusinessException("租户未激活");
+
+			var isMember = await _dbContext.TenantUsers
+				.AnyAsync(x => x.TenantId == tenant.Id && x.UserId == user.Id);
+			if (!isMember)
+				throw new BusinessException("用户不属于该租户");
+
+			tenantId = tenant.Id;
+		}
+
+		// 提取权限并缓存
+		var (roles, permissions) = ExtractRolesAndPermissions(user);
+		_ = CachePermissionsAsync(user.Id, roles, permissions, tenantId);
+
+		var (accessToken, expiresAt) = CreateAccessTokenFromLists(user, roles, permissions, tenantId, tenantCode);
+		var (refreshToken, refreshExpiresAt, refreshTokenEntity) = CreateRefreshTokenEntity(user.Id, tenantId, tenantCode);
 
 		_dbContext.RefreshTokens.Add(refreshTokenEntity);
 
-		var loginIp = GetClientIpOrUnknown();
 		user.RecordLogin(loginIp);
 
 		await _dbContext.SaveChangesAsync();
@@ -209,24 +247,67 @@ public class UserService : AbstractAppService, IUserService
 		if (refresh.ExpiresAtUtc <= DateTime.UtcNow)
 			throw new BusinessException("RefreshToken 已过期");
 
-		var user = await _dbContext.Users
-			.Include(u => u.UserRoles)
-			.ThenInclude(ur => ur.Role)
-			.ThenInclude(r => r.RolePermissions)
-			.ThenInclude(rp => rp.Permission)
-			.FirstOrDefaultAsync(u => u.Id == refresh.UserId)
-			?? throw new BusinessException("用户不存在");
+		// 从 RefreshToken 中恢复租户上下文
+		var tenantId = refresh.TenantId;
+		var tenantCode = refresh.TenantCode;
 
-		if (!user.IsEnable)
-			throw new BusinessException("账号已锁定");
+		// 如果有租户，验证租户仍然有效
+		if (tenantId.HasValue)
+		{
+			var tenant = await _dbContext.Tenants
+				.FirstOrDefaultAsync(x => x.Id == tenantId.Value && !x.IsDeleted);
+			if (tenant is null || tenant.Status != TenantStatus.Active)
+			{
+				// 租户已失效，清除租户信息
+				tenantId = null;
+				tenantCode = null;
+			}
+		}
+
+		// 先尝试从缓存读取权限
+		var cached = await GetCachedPermissionsAsync(refresh.UserId, tenantId);
+
+		User user;
+		IReadOnlyList<string> roles;
+		IReadOnlyList<string> permissions;
+
+		if (cached.HasValue)
+		{
+			// 缓存命中，只加载用户基本信息
+			user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == refresh.UserId)
+				?? throw new BusinessException("用户不存在");
+
+			if (!user.IsEnable)
+				throw new BusinessException("账号已锁定");
+
+			roles = cached.Value.Roles;
+			permissions = cached.Value.Permissions;
+		}
+		else
+		{
+			// 缓存未命中，加载完整关联数据
+			user = await _dbContext.Users
+				.Include(u => u.UserRoles)
+				.ThenInclude(ur => ur.Role)
+				.ThenInclude(r => r.RolePermissions)
+				.ThenInclude(rp => rp.Permission)
+				.FirstOrDefaultAsync(u => u.Id == refresh.UserId)
+				?? throw new BusinessException("用户不存在");
+
+			if (!user.IsEnable)
+				throw new BusinessException("账号已锁定");
+
+			(roles, permissions) = ExtractRolesAndPermissions(user);
+			_ = CachePermissionsAsync(user.Id, roles, permissions, tenantId);
+		}
 
 		var nowIp = GetClientIpOrUnknown();
 
-		var (newRefreshToken, newRefreshExpiresAt, newRefreshEntity) = CreateRefreshTokenEntity(user.Id);
+		var (newRefreshToken, newRefreshExpiresAt, newRefreshEntity) = CreateRefreshTokenEntity(user.Id, tenantId, tenantCode);
 		refresh.Revoke(DateTime.UtcNow, nowIp, newRefreshEntity.TokenHash);
 		_dbContext.RefreshTokens.Add(newRefreshEntity);
 
-		var (accessToken, expiresAt) = CreateAccessToken(user);
+		var (accessToken, expiresAt) = CreateAccessTokenFromLists(user, roles, permissions, tenantId, tenantCode);
 
 		await _dbContext.SaveChangesAsync();
 		await EnforceRefreshSessionLimitAsync(user.Id, "session-limit");
@@ -345,7 +426,7 @@ public class UserService : AbstractAppService, IUserService
 		var user = new User(input.NickName, input.Phone ?? string.Empty, input.Email, BuildPassword(input.Password));
 		if (!input.IsEnable)
 		{
-			user.Disable();
+			user.Disable("admin_disable");
 		}
 
 		user.SetRoles(roleIds);
@@ -370,11 +451,12 @@ public class UserService : AbstractAppService, IUserService
 		}
 		else
 		{
-			user.Disable();
+			user.Disable("admin_disable");
 			await RevokeRefreshTokensAsync(user.Id, "admin-disable");
 		}
 
 		await _dbContext.SaveChangesAsync();
+		await InvalidatePermissionCacheAsync(id);
 	}
 
 	public async Task<bool> EmailExistsAsync(string email, Guid? excludeUserId)
@@ -450,11 +532,12 @@ public class UserService : AbstractAppService, IUserService
 		}
 		else
 		{
-			user.Disable();
+			user.Disable("admin_disable");
 			await RevokeRefreshTokensAsync(user.Id, "admin-disable");
 		}
 
 		await _dbContext.SaveChangesAsync();
+		await InvalidatePermissionCacheAsync(id);
 	}
 
 	public async Task ResetPasswordAsync(Guid id, ResetUserPasswordInputDto input)
@@ -475,10 +558,11 @@ public class UserService : AbstractAppService, IUserService
 		if (_userContext.UserId == id)
 			throw new BusinessException("不能删除当前登录用户");
 
-		user.Disable();
+		user.Disable("admin_disable");
 		user.SoftDelete();
 		await RevokeRefreshTokensAsync(user.Id, "soft-delete");
 		await _dbContext.SaveChangesAsync();
+		await InvalidatePermissionCacheAsync(id);
 	}
 
 	public async Task SetUserAvatarAsync(Guid id, SetUserAvatarInputDto input)
@@ -504,6 +588,28 @@ public class UserService : AbstractAppService, IUserService
 
 	private (string AccessToken, DateTimeOffset ExpiresAt) CreateAccessToken(User user)
 	{
+		var (roles, permissions) = ExtractRolesAndPermissions(user);
+		return CreateAccessTokenFromLists(user, roles, permissions, null, null);
+	}
+
+	private (string AccessToken, DateTimeOffset ExpiresAt) CreateAccessTokenFromLists(
+		User user, IReadOnlyList<string> roles, IReadOnlyList<string> permissions,
+		Guid? tenantId = null, string? tenantCode = null)
+	{
+		var token = _accessTokenService.CreateToken(new AccessTokenRequest(
+			user.Id,
+			user.Email,
+			user.NickName,
+			roles,
+			permissions,
+			tenantId,
+			tenantCode));
+
+		return (token.AccessToken, token.ExpiresAt);
+	}
+
+	private static (IReadOnlyList<string> Roles, IReadOnlyList<string> Permissions) ExtractRolesAndPermissions(User user)
+	{
 		var roles = user.UserRoles
 			.Where(r => r.Role != null)
 			.Select(r => r.Role!.Code)
@@ -519,17 +625,11 @@ public class UserService : AbstractAppService, IUserService
 			.Distinct(StringComparer.OrdinalIgnoreCase)
 			.ToList();
 
-		var token = _accessTokenService.CreateToken(new AccessTokenRequest(
-			user.Id,
-			user.Email,
-			user.NickName,
-			roles,
-			permissions));
-
-		return (token.AccessToken, token.ExpiresAt);
+		return (roles, permissions);
 	}
 
-	private (string RefreshToken, DateTimeOffset RefreshExpiresAt, RefreshToken Entity) CreateRefreshTokenEntity(Guid userId)
+	private (string RefreshToken, DateTimeOffset RefreshExpiresAt, RefreshToken Entity) CreateRefreshTokenEntity(
+		Guid userId, Guid? tenantId = null, string? tenantCode = null)
 	{
 		var rawToken = CreateSecureToken();
 		var tokenHash = ComputeSha256Base64(rawToken);
@@ -541,6 +641,8 @@ public class UserService : AbstractAppService, IUserService
 		{
 			Id = Guid.CreateVersion7(),
 			UserId = userId,
+			TenantId = tenantId,
+			TenantCode = tenantCode,
 			TokenHash = tokenHash,
 			CreatedAtUtc = DateTime.UtcNow,
 			ExpiresAtUtc = expiresAt.UtcDateTime,
@@ -699,6 +801,8 @@ public class UserService : AbstractAppService, IUserService
 			LastLoginTime = user.LastLoginTime,
 			LastLoginIp = user.LastLoginIp,
 			AvatarFileId = user.AvatarFileId,
+			LockReason = user.LockReason,
+			LockedAtUtc = user.LockedAtUtc,
 			Roles = user.UserRoles
 				.Where(x => x.Role != null)
 				.Select(x => new RoleOptionDto
@@ -734,16 +838,205 @@ public class UserService : AbstractAppService, IUserService
 			.Replace('/', '_');
 	}
 
-	private async Task<int> SetLoginFailCountAsync(Guid id)
+	#region 权限缓存
+
+	private static string GetPermissionCacheKey(Guid userId, Guid? tenantId = null)
+		=> tenantId.HasValue
+			? $"t:{tenantId.Value}:auth:user:{userId}:permissions"
+			: $"auth:user:{userId}:permissions";
+
+	private static string GetRoleCacheKey(Guid userId, Guid? tenantId = null)
+		=> tenantId.HasValue
+			? $"t:{tenantId.Value}:auth:user:{userId}:roles"
+			: $"auth:user:{userId}:roles";
+
+	private TimeSpan GetPermissionCacheTtl()
 	{
-		var count = await _redis.StringIncrementAsync(GetLoginFailCountKey(id));
-		return (int)count;
+		// 读取 JWT Access Token 生命周期作为缓存 TTL
+		var seconds = _configuration.GetValue<int?>("Jwt:AccessTokenSeconds");
+		if (seconds.HasValue && seconds.Value > 0)
+			return TimeSpan.FromSeconds(seconds.Value);
+		var minutes = _configuration.GetValue<int?>("Jwt:AccessTokenMinutes") ?? 60;
+		return TimeSpan.FromMinutes(minutes > 0 ? minutes : 60);
 	}
 
-	private async Task RemoveLoginFailCountAsync(Guid id)
+	/// <summary>
+	/// 将角色和权限写入 Redis 缓存
+	/// </summary>
+	private async Task CachePermissionsAsync(Guid userId, IReadOnlyList<string> roles, IReadOnlyList<string> permissions, Guid? tenantId = null)
 	{
-		await _redis.KeyDeleteAsync(GetLoginFailCountKey(id));
+		try
+		{
+			var ttl = GetPermissionCacheTtl();
+			var permKey = GetPermissionCacheKey(userId, tenantId);
+			var roleKey = GetRoleCacheKey(userId, tenantId);
+
+			var db = _redis;
+
+			// 清空旧数据后写入
+			await db.KeyDeleteAsync(permKey);
+			await db.KeyDeleteAsync(roleKey);
+
+			if (permissions.Count > 0)
+			{
+				var entries = permissions.Select(p => new HashEntry(p, "1")).ToArray();
+				await db.HashSetAsync(permKey, entries);
+				await db.KeyExpireAsync(permKey, ttl);
+			}
+
+			if (roles.Count > 0)
+			{
+				var entries = roles.Select(r => new HashEntry(r, "1")).ToArray();
+				await db.HashSetAsync(roleKey, entries);
+				await db.KeyExpireAsync(roleKey, ttl);
+			}
+		}
+		catch (Exception ex)
+		{
+			// 缓存写入失败不影响主流程
+			_logger.LogWarning(ex, "Failed to cache permissions for UserId={UserId}", userId);
+		}
 	}
+
+	/// <summary>
+	/// 从 Redis 缓存读取角色和权限，未命中返回 null
+	/// </summary>
+	private async Task<(IReadOnlyList<string> Roles, IReadOnlyList<string> Permissions)?> GetCachedPermissionsAsync(Guid userId, Guid? tenantId = null)
+	{
+		try
+		{
+			var db = _redis;
+			var permKey = GetPermissionCacheKey(userId, tenantId);
+			var roleKey = GetRoleCacheKey(userId, tenantId);
+
+			if (!await db.KeyExistsAsync(permKey) && !await db.KeyExistsAsync(roleKey))
+				return null;
+
+			var permEntries = await db.HashGetAllAsync(permKey);
+			var roleEntries = await db.HashGetAllAsync(roleKey);
+
+			var permissions = permEntries.Select(e => e.Name.ToString()).ToList();
+			var roles = roleEntries.Select(e => e.Name.ToString()).ToList();
+
+			return (roles, permissions);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogWarning(ex, "Failed to read cached permissions for UserId={UserId}", userId);
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// 失效用户的权限缓存（角色/权限变更时调用）
+	/// </summary>
+	internal async Task InvalidatePermissionCacheAsync(Guid userId)
+	{
+		try
+		{
+			await _redis.KeyDeleteAsync(GetPermissionCacheKey(userId));
+			await _redis.KeyDeleteAsync(GetRoleCacheKey(userId));
+		}
+		catch (Exception ex)
+		{
+			_logger.LogWarning(ex, "Failed to invalidate permission cache for UserId={UserId}", userId);
+		}
+	}
+
+	#endregion
+
+	#region 登录限流
+
+	/// <summary>
+	/// IP+邮箱组合限流键（10 分钟窗口，10 次上限）
+	/// </summary>
+	private static string GetIpEmailFailKey(string ip, string email)
+		=> $"auth:login:fail:ip:{ip}:email:{email.ToLowerInvariant()}";
+
+	/// <summary>
+	/// IP 总计限流键（10 分钟窗口，50 次上限）
+	/// </summary>
+	private static string GetIpFailKey(string ip)
+		=> $"auth:login:fail:ip:{ip}";
+
+	/// <summary>
+	/// 用户登录失败计数键（30 分钟窗口，5 次上限）
+	/// </summary>
+	private static string GetUserFailKey(Guid userId)
+		=> $"auth:login:fail:user:{userId}";
+
+	private const int IpEmailFailLimit = 10;
+	private const int IpFailLimit = 50;
+	private const int UserFailLimit = 5;
+	private static readonly TimeSpan LoginFailWindow = TimeSpan.FromMinutes(10);
+	private static readonly TimeSpan UserFailWindow = TimeSpan.FromMinutes(30);
+
+	/// <summary>
+	/// 检查 IP+邮箱 和 IP 总计限流，超限则抛出异常
+	/// </summary>
+	private async Task CheckLoginRateLimitAsync(string ip, string email)
+	{
+		var ipEmailKey = GetIpEmailFailKey(ip, email);
+		var ipEmailCount = await _redis.StringGetAsync(ipEmailKey);
+		if (ipEmailCount.HasValue && int.Parse(ipEmailCount!) >= IpEmailFailLimit)
+		{
+			var ttl = await _redis.KeyTimeToLiveAsync(ipEmailKey);
+			var seconds = ttl?.TotalSeconds > 0 ? (int)ttl.Value.TotalSeconds : 60;
+			throw new BusinessException($"请求过于频繁，请 {seconds} 秒后再试");
+		}
+
+		var ipKey = GetIpFailKey(ip);
+		var ipCount = await _redis.StringGetAsync(ipKey);
+		if (ipCount.HasValue && int.Parse(ipCount!) >= IpFailLimit)
+		{
+			var ttl = await _redis.KeyTimeToLiveAsync(ipKey);
+			var seconds = ttl?.TotalSeconds > 0 ? (int)ttl.Value.TotalSeconds : 60;
+			throw new BusinessException($"当前 IP 请求过于频繁，请 {seconds} 秒后再试");
+		}
+	}
+
+	/// <summary>
+	/// 记录登录失败：递增 IP+邮箱、IP 总计、用户 三个计数器
+	/// </summary>
+	private async Task RecordLoginFailureAsync(string ip, string email, Guid userId)
+	{
+		var ipEmailKey = GetIpEmailFailKey(ip, email);
+		var ipKey = GetIpFailKey(ip);
+		var userKey = GetUserFailKey(userId);
+
+		var db = _redis;
+
+		var count = await db.StringIncrementAsync(ipEmailKey);
+		if (count == 1)
+			await db.KeyExpireAsync(ipEmailKey, LoginFailWindow);
+
+		var ipCount = await db.StringIncrementAsync(ipKey);
+		if (ipCount == 1)
+			await db.KeyExpireAsync(ipKey, LoginFailWindow);
+
+		var userCount = await db.StringIncrementAsync(userKey);
+		if (userCount == 1)
+			await db.KeyExpireAsync(userKey, UserFailWindow);
+	}
+
+	/// <summary>
+	/// 获取用户登录失败次数
+	/// </summary>
+	private async Task<int> GetUserLoginFailCountAsync(Guid userId)
+	{
+		var value = await _redis.StringGetAsync(GetUserFailKey(userId));
+		return value.HasValue ? (int)value! : 0;
+	}
+
+	/// <summary>
+	/// 清除用户登录失败计数
+	/// </summary>
+	private async Task ClearUserLoginFailCountAsync(Guid userId)
+	{
+		await _redis.KeyDeleteAsync(GetUserFailKey(userId));
+	}
+
+	#endregion
 
 	private async Task CheckSendLimitAsync(string target, CodePurpose purpose)
 	{
@@ -777,7 +1070,4 @@ public class UserService : AbstractAppService, IUserService
 
 	private static string GetDailyKey(string target, CodePurpose purpose)
 		=> $"verify:daily:{purpose}:{target}:{DateTime.Today:yyyyMMdd}";
-
-	private static string GetLoginFailCountKey(Guid id)
-		=> $"verify:login:fail:{id}";
 }

@@ -22,5 +22,15 @@ public sealed class UserDetailDto
 
 	public Guid? AvatarFileId { get; init; }
 
+	/// <summary>
+	/// 锁定原因
+	/// </summary>
+	public string? LockReason { get; init; }
+
+	/// <summary>
+	/// 锁定时间
+	/// </summary>
+	public DateTime? LockedAtUtc { get; init; }
+
 	public IReadOnlyList<RoleOptionDto> Roles { get; init; } = [];
 }

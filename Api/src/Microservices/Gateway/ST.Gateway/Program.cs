@@ -4,13 +4,19 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Scalar.AspNetCore;
+using ST.Gateway.RateLimiting;
+using ST.Infra.Redis.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.AddServiceDefaults();
+// Gateway 作为纯代理，不使用 AddServiceDefaults()（含 OpenTelemetry/ServiceDiscovery/Resilience），
+// 这些会给每个代理请求增加 1.5s+ 开销。仅保留健康检查端点。
+builder.Services.AddHealthChecks()
+    .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(), ["live"]);
 
 ApplyGatewayDestinationOverrides(builder.Configuration);
 ConfigureForwardedHeaders(builder.Services, builder.Configuration);
@@ -23,6 +29,11 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 builder.Services.AddOpenApi();
+
+// Gateway 分布式限流
+builder.Services.AddGatewayRateLimiting(builder.Configuration);
+builder.Services.AddRedisInfra(builder.Configuration);
+builder.Services.AddRedisRateLimiting();
 
 var rateLimiterEnabled = builder.Configuration.GetValue("RateLimiting:Enabled", true);
 if (rateLimiterEnabled)
@@ -89,24 +100,117 @@ builder.Services.AddReverseProxy()
 
 var app = builder.Build();
 
-app.MapDefaultEndpoints();
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/alive", new HealthCheckOptions
+{
+    Predicate = r => r.Tags.Contains("live")
+});
+
+// ── 性能诊断：管线最外层 ─────────────────────────────────────────────────────
+app.Use(async (context, next) =>
+{
+    var totalSw = System.Diagnostics.Stopwatch.StartNew();
+    var stepSw = new System.Diagnostics.Stopwatch();
+    var steps = new System.Collections.Generic.List<string>();
+
+    // ForwardedHeaders
+    stepSw.Restart();
+    if (app.Configuration.GetValue("ForwardedHeaders:Enabled", true))
+    {
+        // ForwardedHeaders 已在下面注册，这里只计时
+    }
+    stepSw.Stop();
+
+    await next();
+
+    totalSw.Stop();
+    Console.WriteLine(
+        $"[GW-PERF] {context.Request.Method} {context.Request.Path} | " +
+        $"Total={totalSw.ElapsedMilliseconds}ms Status={context.Response.StatusCode}");
+
+    if (totalSw.ElapsedMilliseconds > 200)
+    {
+        Console.WriteLine($"[GW-SLOW] {context.Request.Method} {context.Request.Path} took {totalSw.ElapsedMilliseconds}ms!");
+    }
+});
 
 if (builder.Configuration.GetValue("ForwardedHeaders:Enabled", true))
 {
 	app.UseForwardedHeaders();
 }
 
+// ── CorrelationId 中间件 ─────────────────────────────────────────────────────
+// 读取请求头 X-Correlation-Id，若无则从 traceparent 或 TraceId 生成；
+// 存入 HttpContext.Items 并写入响应头，YARP 转发时自动携带。
+app.Use(async (context, next) =>
+{
+	var sw = System.Diagnostics.Stopwatch.StartNew();
+
+	const string headerName = "X-Correlation-Id";
+
+	// 优先从请求头读取
+	var correlationId = context.Request.Headers[headerName].FirstOrDefault();
+
+	// 若无，从 W3C traceparent 提取 TraceId
+	if (string.IsNullOrWhiteSpace(correlationId))
+	{
+		var traceParent = context.Request.Headers["traceparent"].FirstOrDefault();
+		if (!string.IsNullOrWhiteSpace(traceParent) && traceParent.Length >= 32)
+		{
+			// traceparent 格式: {version}-{trace-id}-{parent-id}-{flags}
+			correlationId = traceParent.Split('-')[1];
+		}
+	}
+
+	// 若仍无，使用当前 Activity 的 TraceId 或生成新的
+	if (string.IsNullOrWhiteSpace(correlationId))
+	{
+		correlationId = System.Diagnostics.Activity.Current?.TraceId.ToString()
+			?? Guid.NewGuid().ToString("N");
+	}
+
+	context.Items["CorrelationId"] = correlationId;
+	context.Response.Headers[headerName] = correlationId;
+
+	await next();
+	sw.Stop();
+	Console.WriteLine($"[GW-PERF] CorrelationId: {sw.ElapsedMilliseconds}ms");
+});
+
 app.UseCors("st-default");
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
+
+// 诊断：静态文件耗时
+app.Use(async (context, next) =>
+{
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    await next();
+    sw.Stop();
+    if (sw.ElapsedMilliseconds > 10)
+        Console.WriteLine($"[GW-PERF] StaticFiles+Downstream: {sw.ElapsedMilliseconds}ms");
+});
+
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
 if (rateLimiterEnabled)
 {
 	app.UseRateLimiter();
+
+	// 诊断：限流中间件耗时
+	app.Use(async (context, next) =>
+	{
+		var sw = System.Diagnostics.Stopwatch.StartNew();
+		await next();
+		sw.Stop();
+		if (sw.ElapsedMilliseconds > 10)
+			Console.WriteLine($"[GW-PERF] RateLimitingMiddleware: {sw.ElapsedMilliseconds}ms");
+	});
+
+	app.UseGatewayRateLimiting();
 }
 
 var rootRedirect = app.MapGet("/", () => Results.Redirect("/docs")).ExcludeFromDescription();

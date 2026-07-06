@@ -1,6 +1,7 @@
 using ST.MS.FileUpload.Application.Dtos;
 using ST.MS.FileUpload.Domain.Entities;
 using ST.Shared.Application;
+using ST.Shared.Application.Dtos;
 
 namespace ST.MS.FileUpload.Application.IServices;
 
@@ -12,13 +13,19 @@ public interface IFileAppService : IAppService
     /// <summary>上传文件</summary>
     Task<FileUploadResultDto> UploadAsync(Stream stream, string fileName, string contentType, FileAccessLevel accessLevel = FileAccessLevel.Private, string? uploaderName = null);
 
-    /// <summary>删除文件</summary>
-    Task DeleteAsync(Guid id);
+    /// <summary>删除文件（仅上传者可删除）</summary>
+    Task DeleteAsync(Guid id, Guid userId);
 
     /// <summary>获取文件信息</summary>
     Task<FileInfoDto> GetAsync(Guid id);
 
-    /// <summary>下载文件（返回文件流与元数据）</summary>
+    /// <summary>文件列表分页查询</summary>
+    Task<PagedResultDto<FileInfoDto>> GetListAsync(FileQueryInputDto input);
+
+    /// <summary>下载文件（认证用户，Private 文件仅上传者可下载）</summary>
+    Task<FileDownloadResultDto> DownloadWithAuthAsync(Guid id, Guid userId);
+
+    /// <summary>下载文件（签名 URL 专用，不做 Owner 校验）</summary>
     Task<FileDownloadResultDto> DownloadAsync(Guid id);
 
     /// <summary>公开下载文件（仅允许 Public 文件，无需认证）</summary>

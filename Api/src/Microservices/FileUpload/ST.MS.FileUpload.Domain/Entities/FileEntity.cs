@@ -3,7 +3,7 @@ namespace ST.MS.FileUpload.Domain.Entities;
 /// <summary>
 /// 文件上传记录
 /// </summary>
-public sealed class FileEntity : DomainEntity
+public sealed class FileEntity : DomainEntity, ITenantEntity
 {
     /// <summary>原始文件名</summary>
     public string FileName { get; private set; } = string.Empty;
@@ -26,9 +26,15 @@ public sealed class FileEntity : DomainEntity
     /// <summary>上传用户显示名（冗余存储，避免联查）</summary>
     public string? UploaderName { get; private set; }
 
+    /// <summary>文件 SHA256 Hash（用于秒传去重）</summary>
+    public string? FileHash { get; private set; }
+
+    /// <summary>租户 ID</summary>
+    public Guid TenantId { get; set; }
+
     private FileEntity() { } // EF Core
 
-    public FileEntity(string fileName, string filePath, long fileSize, string contentType, string extension, FileAccessLevel accessLevel = FileAccessLevel.Private, string? uploaderName = null)
+    public FileEntity(string fileName, string filePath, long fileSize, string contentType, string extension, FileAccessLevel accessLevel = FileAccessLevel.Private, string? uploaderName = null, string? fileHash = null)
     {
         Id = Guid.CreateVersion7();
         FileName = fileName;
@@ -38,5 +44,6 @@ public sealed class FileEntity : DomainEntity
         Extension = extension;
         AccessLevel = accessLevel;
         UploaderName = uploaderName;
+        FileHash = fileHash;
     }
 }

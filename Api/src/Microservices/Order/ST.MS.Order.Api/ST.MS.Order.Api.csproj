@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerfileContext>..\..\..</DockerfileContext>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="logs\**" />
+    <Content Remove="logs\**" />
+    <EmbeddedResource Remove="logs\**" />
+    <None Remove="logs\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="NLog\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9">
+      <TreatAsUsed>true</TreatAsUsed>
+    </PackageReference>
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Aspire\ST.Aspire.ServiceDefaults\ST.Aspire.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\..\ServiceShared\ST.Shared.WebApi\ST.Shared.WebApi.csproj" />
+    <ProjectReference Include="..\..\..\Infrastructures\ST.Infra.EventBus\ST.Infra.EventBus.csproj" />
+    <ProjectReference Include="..\..\..\Infrastructures\ST.Infra.IntegrationEvents\ST.Infra.IntegrationEvents.csproj" />
+    <ProjectReference Include="..\..\..\Infrastructures\ST.Infra.ReliableMessaging\ST.Infra.ReliableMessaging.csproj" />
+    <ProjectReference Include="..\ST.MS.Order.Application\ST.MS.Order.Application.csproj" />
+    <ProjectReference Include="..\ST.MS.Order.Infra\ST.MS.Order.Infra.csproj" />
+  </ItemGroup>
+
+</Project>

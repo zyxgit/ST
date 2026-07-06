@@ -12,7 +12,7 @@
 | 网关 | `Api/src/Microservices/Gateway/ST.Gateway`，使用 YARP、CORS、限流与 Scalar/OpenAPI 文档跳转 |
 | 微服务 | `Identity`、`OperationLog`、`OperationLog.Consumer`、`Test`、`FileUpload` |
 | 共享库 | `Api/src/ServiceShared/` 提供共享 WebApi、Application、Domain、认证、异常、日志、模块化启动等能力 |
-| 基础设施 | `Api/src/Infrastructures/` 提供 EF Core、PostgreSQL、Redis、RabbitMQ EventBus、Repository、Tasks、Email 等 |
+| 基础设施 | `Api/src/Infrastructures/` 提供 EF Core、PostgreSQL、Redis、RabbitMQ EventBus、Repository、Tasks、Email、**ReliableMessaging（Outbox / Inbox）** 等 |
 | 前端 | `Web/` 为 Vue 3 + TypeScript + Vite + Pinia + Vue Router + Naive UI 管理端 |
 | AI 文档入口 | `docs/ai/AI-RULES.md` |
 

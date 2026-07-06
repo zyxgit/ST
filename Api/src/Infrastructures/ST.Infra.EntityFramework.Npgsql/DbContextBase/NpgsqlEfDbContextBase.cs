@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using ST.Infra.EntityFramework.DbContextBase;
 using ST.Infra.Repository.Entities;
 using ST.Infra.Repository.Interface;
+using ST.Shared;
+using ST.Shared.Security;
 
 namespace ST.Infra.EntityFramework.Npgsql.DbContextBase;
 
@@ -35,6 +37,7 @@ public abstract class NpgsqlEfDbContextBase : EfDbContextBase
 
 	public override int SaveChanges(bool acceptAllChangesOnSuccess)
 	{
+		SyncTenantContext();
 		FillAuditFields();
 		NormalizeDateTimeToUtc();
 		return base.SaveChanges(acceptAllChangesOnSuccess);
@@ -42,9 +45,26 @@ public abstract class NpgsqlEfDbContextBase : EfDbContextBase
 
 	public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
 	{
+		SyncTenantContext();
 		FillAuditFields();
 		NormalizeDateTimeToUtc();
 		return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+	}
+
+	/// <summary>
+	/// 从 ICurrentTenantAccessor 同步租户 ID 到 TenantContext，
+	/// 确保查询过滤器和自动填充使用正确的租户上下文。
+	/// </summary>
+	private void SyncTenantContext()
+	{
+		if (TenantContext.CurrentTenantId.HasValue)
+			return;
+
+		var tenantAccessor = this.GetService<ICurrentTenantAccessor>();
+		if (tenantAccessor?.TenantId is { } tid)
+		{
+			TenantContext.CurrentTenantId = tid;
+		}
 	}
 
 	private void FillAuditFields()
@@ -66,6 +86,13 @@ public abstract class NpgsqlEfDbContextBase : EfDbContextBase
 				{
 					full.ModifyBy = userId;
 					full.ModifyTime = nowUtc;
+				}
+
+				// 自动填充租户 ID
+				if (entry.Entity is ITenantEntity tenant && tenant.TenantId == Guid.Empty
+					&& TenantContext.CurrentTenantId.HasValue)
+				{
+					tenant.TenantId = TenantContext.CurrentTenantId.Value;
 				}
 			}
 			else if (entry.State == EntityState.Modified)

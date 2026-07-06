@@ -14,7 +14,14 @@
       "Bash(node -e ' *)",
       "Bash(cd \"e:/MyCode/Study/我的模版/ST\" && sed -i '469,485d' Api/src/Microservices/Identity/ST.MS.Identity.Application/Services/UserService.cs)",
       "Bash(dotnet --version)",
-      "Bash(bash Api/tools/migrate.sh help)"
+      "Bash(bash Api/tools/migrate.sh help)",
+      "Bash(dotnet build *)",
+      "Bash(export Database__ConnectionString=\"Host=localhost;Port=15432;Database=st_operationlog;Username=pguser;Password=pw123456\")",
+      "Bash(Database__ConnectionString=\"Host=localhost;Port=3348;Username=postgres;Password=pw123456;Database=st_fileupload\" dotnet ef database update --no-build --project Api/src/Microservices/FileUpload/ST.MS.FileUpload.Infra --startup-project Api/src/Microservices/FileUpload/ST.MS.FileUpload.Api)",
+      "Bash(Database__ConnectionString=\"Host=localhost;Port=3348;Username=postgres;Password=pw123456;Database=st_identity\" dotnet ef database update --no-build --project Api/src/Microservices/Identity/ST.MS.Identity.Infra --startup-project Api/src/Microservices/Identity/ST.MS.Identity.Api)",
+      "Bash(Database__ConnectionString=\"Host=localhost;Port=3348;Username=postgres;Password=pw123456;Database=st_operationlog\" dotnet ef database update --no-build --project Api/src/Microservices/OperationLog/ST.MS.OperationLog.Infra --startup-project Api/src/Microservices/OperationLog/ST.MS.OperationLog.Api)",
+      "Bash(tasklist)",
+      "Bash(taskkill //F //IM ST.MS.Identity.Api.exe)"
     ],
     "additionalDirectories": [
       "e:\\MyCode\\Study\\我的模版\\ST\\Api\\src\\Microservices\\Identity\\ST.MS.Identity.Application\\Services"

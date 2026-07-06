@@ -1,4 +1,4 @@
-﻿<Project Sdk="Aspire.AppHost.Sdk/13.4.3">
+﻿<Project Sdk="Aspire.AppHost.Sdk/13.4.6">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -9,10 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.Docker" Version="13.4.3" />
-    <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="13.4.3" />
-    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.4.3" />
-    <PackageReference Include="Aspire.Hosting.Redis" Version="13.4.3" />
+    <PackageReference Include="Aspire.Hosting.Docker" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.Redis" Version="13.4.6" />
   </ItemGroup>
 
   <ItemGroup>
@@ -22,6 +22,9 @@
     <ProjectReference Include="..\..\Microservices\OperationLog\ST.MS.OperationLog.Consumer\ST.MS.OperationLog.Consumer.csproj" />
     <ProjectReference Include="..\..\Microservices\Test\ST.MS.Test.Api\ST.MS.Test.Api.csproj" />
     <ProjectReference Include="..\..\Microservices\FileUpload\ST.MS.FileUpload.Api\ST.MS.FileUpload.Api.csproj" />
+    <ProjectReference Include="..\..\Microservices\Inventory\ST.MS.Inventory.Api\ST.MS.Inventory.Api.csproj" />
+    <ProjectReference Include="..\..\Microservices\Order\ST.MS.Order.Api\ST.MS.Order.Api.csproj" />
+    <ProjectReference Include="..\..\Microservices\Payment\ST.MS.Payment.Api\ST.MS.Payment.Api.csproj" />
   </ItemGroup>
 
 </Project>

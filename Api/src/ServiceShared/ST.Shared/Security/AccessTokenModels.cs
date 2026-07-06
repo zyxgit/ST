@@ -5,7 +5,9 @@ public sealed record AccessTokenRequest(
 	string Email,
 	string? NickName,
 	IReadOnlyCollection<string> Roles,
-	IReadOnlyCollection<string> Permissions
+	IReadOnlyCollection<string> Permissions,
+	Guid? TenantId = null,
+	string? TenantCode = null
 );
 
 public sealed record AccessTokenResult(

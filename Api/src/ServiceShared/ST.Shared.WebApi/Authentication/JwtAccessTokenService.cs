@@ -53,6 +53,15 @@ public sealed class JwtAccessTokenService : IAccessTokenService
 			claims.Add(new Claim(JwtClaimConstants.Permission, perm));
 		}
 
+		if (request.TenantId.HasValue)
+		{
+			claims.Add(new Claim(JwtClaimConstants.TenantId, request.TenantId.Value.ToString("D")));
+			if (!string.IsNullOrWhiteSpace(request.TenantCode))
+			{
+				claims.Add(new Claim(JwtClaimConstants.TenantCode, request.TenantCode));
+			}
+		}
+
 		var keyBytes = Encoding.UTF8.GetBytes(_options.SigningKey);
 		var signingCredentials = new SigningCredentials(
 			new SymmetricSecurityKey(keyBytes),

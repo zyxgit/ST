@@ -17,4 +17,11 @@ export const PermissionCode = {
   MenuDelete: 'system:menu:delete',
 
   OperationLogQuery: 'system:operationlog:query',
+
+  TenantQuery: 'system:tenant:query',
+  TenantCreate: 'system:tenant:create',
+  TenantUpdate: 'system:tenant:update',
+  TenantDelete: 'system:tenant:delete',
+  TenantUser: 'system:tenant:user',
+  TenantQuota: 'system:tenant:quota',
 } as const

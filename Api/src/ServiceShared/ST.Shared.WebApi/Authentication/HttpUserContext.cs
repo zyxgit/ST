@@ -71,6 +71,17 @@ public sealed class HttpUserContext : IUserContext
 			.ToList()
 		?? [];
 
+	public Guid? TenantId
+	{
+		get
+		{
+			var tid = FindFirstValue(JwtClaimConstants.TenantId);
+			return Guid.TryParse(tid, out var id) ? id : null;
+		}
+	}
+
+	public string? TenantCode => FindFirstValue(JwtClaimConstants.TenantCode);
+
 	private string? FindFirstValue(params string[] claimTypes)
 	{
 		var user = _httpContextAccessor.HttpContext?.User;

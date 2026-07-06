@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "ST.MS.Payment.Api": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:6299;http://localhost:6302"
+    }
+  }
+}

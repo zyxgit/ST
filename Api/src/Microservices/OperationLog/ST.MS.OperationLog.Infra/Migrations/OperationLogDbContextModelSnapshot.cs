@@ -111,6 +111,10 @@ namespace ST.MS.OperationLog.Infra.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("tags_json");
 
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
                     b.Property<string>("TraceId")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -142,6 +146,83 @@ namespace ST.MS.OperationLog.Infra.Migrations
                         .HasDatabaseName("ix_operation_logs_user_id");
 
                     b.ToTable("operation_logs", (string)null);
+                });
+
+            modelBuilder.Entity("ST.MS.OperationLog.Infra.Entities.DeadLetterMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("error_message");
+
+                    b.Property<string>("ErrorStackTrace")
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)")
+                        .HasColumnName("error_stack_trace");
+
+                    b.Property<string>("ExchangeName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("exchange_name");
+
+                    b.Property<int>("MaxRetryCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_retry_count");
+
+                    b.Property<DateTime?>("MessageCreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("message_created_at_utc");
+
+                    b.Property<string>("OriginalMessage")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("original_message");
+
+                    b.Property<string>("QueueName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("queue_name");
+
+                    b.Property<string>("ReplayResult")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("replay_result");
+
+                    b.Property<DateTime?>("ReplayedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("replayed_at_utc");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("retry_count");
+
+                    b.Property<string>("RoutingKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("routing_key");
+
+                    b.HasKey("Id")
+                        .HasName("pk_dead_letter_messages");
+
+                    b.HasIndex("CreatedAtUtc")
+                        .HasDatabaseName("ix_dead_letter_messages_created_at_utc");
+
+                    b.HasIndex("QueueName", "CreatedAtUtc")
+                        .HasDatabaseName("ix_dead_letter_messages_queue_name_created_at_utc");
+
+                    b.ToTable("dead_letter_messages", (string)null);
                 });
 #pragma warning restore 612, 618
         }

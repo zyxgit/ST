@@ -12,6 +12,8 @@ public sealed record OperationLogEntry
 
 	public Guid? UserId { get; init; }
 
+	public Guid? TenantId { get; init; }
+
 	public string? UserName { get; init; }
 
 	public string OperationName { get; init; } = string.Empty;

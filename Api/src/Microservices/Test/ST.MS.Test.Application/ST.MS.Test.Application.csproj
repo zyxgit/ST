@@ -10,6 +10,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\..\Infrastructures\ST.Infra.Redis\ST.Infra.Redis.csproj" />
+		<ProjectReference Include="..\..\..\Infrastructures\ST.Infra.ReliableMessaging\ST.Infra.ReliableMessaging.csproj" />
 		<ProjectReference Include="..\..\..\ServiceShared\ST.Shared.Application\ST.Shared.Application.csproj" />
 		<ProjectReference Include="..\ST.MS.Test.Domain\ST.MS.Test.Domain.csproj" />
 		<ProjectReference Include="..\ST.MS.Test.Infra\ST.MS.Test.Infra.csproj" />

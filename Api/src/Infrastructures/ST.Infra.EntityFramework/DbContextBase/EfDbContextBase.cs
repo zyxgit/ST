@@ -20,15 +20,17 @@ public abstract class EfDbContextBase : DbContext
 		modelBuilder.ApplyDefaultStringLength();
 		//软删除过滤器
 		modelBuilder.ApplySoftDeleteQueryFilter();
-		//移除外键关系，配合 NoForeignKeySqlGenerator 双保险禁止外键
-		modelBuilder.ApplyNoForeignKeys();
+		//租户数据隔离过滤器（必须在软删除之后，合并两者）
+		modelBuilder.ApplyTenantQueryFilter();
+		// 注意：不在运行时移除外键关系（ApplyNoForeignKeys），否则 Include/ThenInclude 导航属性
+		// 会丢失 JOIN 条件元数据，导致查询退化为笛卡尔积或全表扫描。
+		// 外键禁止已由 NoForeignKeySqlGenerator 在迁移 SQL 层面实现，运行时保留模型关系即可。
 	}
 
 	protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 	{
 		optionsBuilder.UseSnakeCaseNamingConvention();
-		// ApplyNoForeignKeys() 从模型移除外键，导致模型与迁移快照不一致，
-		// 需抑制此警告以允许 MigrateAsync() 正常执行（实际 FK 操作由 NoForeignKeySqlGenerator 处理）。
+		// 抑制模型待变更警告（CodeFirst 迁移场景下模型与快照可能不一致）。
 		optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
 	}
 

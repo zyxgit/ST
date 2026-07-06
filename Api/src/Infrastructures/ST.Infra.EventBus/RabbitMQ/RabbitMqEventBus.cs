@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ST.Infra.EventBus.Abstractions;
 using ST.Infra.EventBus.RabbitMQ.Config;
 using ST.Infra.EventBus.RabbitMQ.Internal;
+using ST.Shared;
 
 namespace ST.Infra.EventBus.RabbitMQ;
 
@@ -65,8 +66,16 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
 					MessageId = @event.Id.ToString(),
 					Type = eventName,
 					ContentType = "application/json",
-					Persistent = _options.Durable
+					Persistent = _options.Durable,
+					CorrelationId = @event.TraceId ?? @event.CorrelationId,
 				};
+
+				// 租户上下文传播
+				if (@event.TenantId.HasValue)
+				{
+					properties.Headers ??= new Dictionary<string, object?>();
+					properties.Headers["x-tenant-id"] = @event.TenantId.Value.ToString("D");
+				}
 
 				await channel.BasicPublishAsync(
 					exchange: _options.ExchangeName,
@@ -283,6 +292,25 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
 
 		var bodyText = Encoding.UTF8.GetString(eventArgs.Body.ToArray());
 
+		// 从 CorrelationId 恢复 TraceContext
+		using var activity = !string.IsNullOrWhiteSpace(eventArgs.BasicProperties.CorrelationId)
+			? RabbitMqEventBusTracing.StartConsumerActivity(eventArgs.BasicProperties.CorrelationId, eventName)
+			: null;
+
+		// 从 x-tenant-id header 恢复租户上下文
+		Guid? tenantId = null;
+		if (eventArgs.BasicProperties.Headers is not null &&
+			eventArgs.BasicProperties.Headers.TryGetValue("x-tenant-id", out var tidObj) &&
+			tidObj is byte[] tidBytes)
+		{
+			var tidStr = Encoding.UTF8.GetString(tidBytes);
+			if (Guid.TryParse(tidStr, out var parsed))
+			{
+				tenantId = parsed;
+				TenantContext.CurrentTenantId = tenantId;
+			}
+		}
+
 		try
 		{
 			await ProcessEventAsync(eventName, bodyText).ConfigureAwait(false);
@@ -352,5 +380,32 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
 
 			await task.ConfigureAwait(false);
 		}
+	}
+}
+
+/// <summary>
+/// RabbitMQ 消费端 TraceContext 恢复辅助。
+/// 从 CorrelationId 创建 Activity，使消费端的日志和指标能关联到发布端的 TraceId。
+/// </summary>
+internal static class RabbitMqEventBusTracing
+{
+	private static readonly System.Diagnostics.ActivitySource ActivitySource = new("ST.EventBus.RabbitMQ");
+
+	/// <summary>
+	/// 创建一个消费端 Activity，ParentId 设为消息的 CorrelationId（即发布端的 TraceId）。
+	/// </summary>
+	internal static System.Diagnostics.Activity? StartConsumerActivity(string correlationId, string eventName)
+	{
+		var activity = ActivitySource.StartActivity(
+			$"RabbitMQ consume {eventName}",
+			System.Diagnostics.ActivityKind.Consumer);
+
+		if (activity is not null && !string.IsNullOrWhiteSpace(correlationId))
+		{
+			// 将 CorrelationId 作为 ParentId，建立跨服务链路关联
+			activity.SetParentId(correlationId);
+		}
+
+		return activity;
 	}
 }

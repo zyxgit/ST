@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\Infrastructures\ST.Infra.EntityFramework.Npgsql\ST.Infra.EntityFramework.Npgsql.csproj" />
+    <ProjectReference Include="..\..\..\Infrastructures\ST.Infra.ReliableMessaging\ST.Infra.ReliableMessaging.csproj" />
     <ProjectReference Include="..\ST.MS.Test.Domain\ST.MS.Test.Domain.csproj" />
   </ItemGroup>
 

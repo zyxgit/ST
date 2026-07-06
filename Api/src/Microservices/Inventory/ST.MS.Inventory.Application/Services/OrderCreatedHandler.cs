@@ -1,0 +1,107 @@
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using ST.Infra.EventBus.Abstractions;
+using ST.Infra.IntegrationEvents.Inventory;
+using ST.Infra.IntegrationEvents.Orders;
+using ST.Infra.ReliableMessaging.Abstractions;
+using ST.Infra.ReliableMessaging.Models;
+using ST.MS.Inventory.Infra.DbContext;
+
+namespace ST.MS.Inventory.Application.Services;
+
+/// <summary>
+/// 处理 OrderCreatedIntegrationEvent。
+/// 冻结库存，成功则发布 InventoryFrozen，失败则发布 InventoryFreezeFailed。
+/// 使用 Inbox 幂等 + Outbox 可靠发布，与冻结操作同一事务。
+/// </summary>
+public class OrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrationEvent>
+{
+	private readonly InventoryDbContext _dbContext;
+	private readonly IInboxStore _inboxStore;
+	private readonly IOutboxStore _outboxStore;
+	private readonly IInventoryService _inventoryService;
+	private readonly ILogger<OrderCreatedHandler> _logger;
+
+	private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+	private const string Consumer = "InventoryService";
+
+	public OrderCreatedHandler(
+		InventoryDbContext dbContext,
+		IInboxStore inboxStore,
+		IOutboxStore outboxStore,
+		IInventoryService inventoryService,
+		ILogger<OrderCreatedHandler> logger)
+	{
+		_dbContext = dbContext;
+		_inboxStore = inboxStore;
+		_outboxStore = outboxStore;
+		_inventoryService = inventoryService;
+		_logger = logger;
+	}
+
+	public async Task HandleAsync(OrderCreatedIntegrationEvent @event, CancellationToken cancellationToken = default)
+	{
+		// 幂等检查
+		if (await _inboxStore.ExistsAsync(@event.Id, Consumer, cancellationToken))
+		{
+			_logger.LogDebug("OrderCreated event already processed. EventId={EventId}", @event.Id);
+			return;
+		}
+
+		// 记录 Inbox
+		_inboxStore.Add(new InboxMessage
+		{
+			MessageId = @event.Id,
+			Consumer = Consumer,
+			EventType = nameof(OrderCreatedIntegrationEvent),
+			ReceivedAtUtc = DateTime.UtcNow
+		});
+
+		// 冻结库存
+		var sw = System.Diagnostics.Stopwatch.StartNew();
+		var success = await _inventoryService.FreezeInventoryAsync(
+			@event.OrderId, @event.Items, cancellationToken);
+		sw.Stop();
+		InventoryMetrics.FreezeDurationMs.Record(sw.Elapsed.TotalMilliseconds);
+
+		if (success)
+		{
+			InventoryMetrics.FreezeSuccess.Add(1);
+			// 冻结成功 → 发布 InventoryFrozen
+			var frozenEvent = new InventoryFrozenIntegrationEvent(@event.OrderId);
+			_outboxStore.Add(new OutboxMessage
+			{
+				AggregateId = @event.OrderId,
+				EventType = nameof(InventoryFrozenIntegrationEvent),
+				Payload = JsonSerializer.Serialize(frozenEvent, frozenEvent.GetType(), JsonOptions),
+				Status = OutboxStatus.Pending,
+				OccurredAtUtc = DateTime.UtcNow
+			});
+
+			_logger.LogInformation("Inventory frozen for OrderId={OrderId}", @event.OrderId);
+		}
+		else
+		{
+			InventoryMetrics.FreezeFailed.Add(1);
+			// 冻结失败 → 发布 InventoryFreezeFailed
+			var failedEvent = new InventoryFreezeFailedIntegrationEvent(@event.OrderId, "库存不足");
+			_outboxStore.Add(new OutboxMessage
+			{
+				AggregateId = @event.OrderId,
+				EventType = nameof(InventoryFreezeFailedIntegrationEvent),
+				Payload = JsonSerializer.Serialize(failedEvent, failedEvent.GetType(), JsonOptions),
+				Status = OutboxStatus.Pending,
+				OccurredAtUtc = DateTime.UtcNow
+			});
+
+			_logger.LogWarning("Inventory freeze failed for OrderId={OrderId}", @event.OrderId);
+		}
+
+		// 标记 Inbox 已处理
+		await _inboxStore.MarkAsProcessedAsync(@event.Id, Consumer, cancellationToken);
+
+		// 同一事务保存（Inbox + FreezeRecords + Outbox）
+		await _dbContext.SaveChangesAsync(cancellationToken);
+	}
+}

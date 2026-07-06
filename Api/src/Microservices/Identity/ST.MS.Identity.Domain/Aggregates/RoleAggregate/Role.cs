@@ -51,11 +51,6 @@ public class Role : AggregateRoot, ISoftDelete
 	/// </summary>
 	public List<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
 
-	/// <summary>
-	/// 角色
-	/// </summary>
-	public List<Role> Roles { get; set; } = [];
-
 	#region 行为
 
 	public void SetCode(string code) => Code = code;

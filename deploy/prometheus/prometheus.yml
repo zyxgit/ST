@@ -1,0 +1,15 @@
+# Prometheus 配置 — ST 可观测性
+# 从 Alloy 抓取 OTel metrics
+---
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "alloy"
+    static_configs:
+      - targets: ["alloy:12345"]
+
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

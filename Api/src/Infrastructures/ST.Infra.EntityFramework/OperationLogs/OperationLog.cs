@@ -41,6 +41,11 @@ public sealed class OperationLog
 	public string? ExceptionStackTrace { get; set; }
 
 	/// <summary>
+	/// 租户 ID
+	/// </summary>
+	public Guid? TenantId { get; set; }
+
+	/// <summary>
 	/// 业务标签（JSON），预留扩展（如业务ID、租户、模块等）。
 	/// </summary>
 	public string? TagsJson { get; set; }

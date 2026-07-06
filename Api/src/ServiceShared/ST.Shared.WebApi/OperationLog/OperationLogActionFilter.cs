@@ -110,6 +110,7 @@ public sealed class OperationLogActionFilter : IAsyncActionFilter
 				TraceId = activity?.TraceId.ToString() ?? http.TraceIdentifier,
 				SpanId = activity?.SpanId.ToString(),
 				UserId = _userContext.UserId,
+				TenantId = _userContext.TenantId,
 				UserName = _userContext.NickName ?? _userContext.Email,
 				OperationName = attr.OperationName,
 				Path = http.Request.Path.Value ?? string.Empty,

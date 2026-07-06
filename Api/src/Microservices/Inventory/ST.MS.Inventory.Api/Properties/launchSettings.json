@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "ST.MS.Inventory.Api": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:64145;http://localhost:64147"
+    }
+  }
+}

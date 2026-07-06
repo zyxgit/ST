@@ -12,6 +12,16 @@ public class RefreshToken : IEntity
 	public Guid UserId { get; set; }
 
 	/// <summary>
+	/// 租户 ID（登录时指定的租户）
+	/// </summary>
+	public Guid? TenantId { get; set; }
+
+	/// <summary>
+	/// 租户编码
+	/// </summary>
+	public string? TenantCode { get; set; }
+
+	/// <summary>
 	/// RefreshToken 的 SHA256(Base64)
 	/// </summary>
 	public string TokenHash { get; set; } = string.Empty;

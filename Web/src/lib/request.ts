@@ -41,9 +41,22 @@ instance.interceptors.request.use((config) => {
 instance.interceptors.response.use(
   (response) => response.data,
   async (error: AxiosError<{ message?: string; detail?: string; title?: string }>) => {
-    const { message } = useDiscrete()
+    const { message, dialog } = useDiscrete()
     const originalRequest = error.config
     const status = error.response?.status
+
+    // 429 限流处理
+    if (status === 429) {
+      const retryAfter = parseInt(error.response?.headers?.['retry-after'] || '60', 10)
+
+      dialog.warning({
+        title: '操作太频繁',
+        content: `请求过于频繁，请在 ${retryAfter} 秒后重试。`,
+        positiveText: '我知道了',
+      })
+
+      return Promise.reject(error)
+    }
 
     if (status === 401 && originalRequest && !originalRequest.headers?.['x-refresh-retry']) {
       const refreshToken = getRefreshToken()
@@ -56,7 +69,7 @@ instance.interceptors.response.use(
 
       refreshPromise ??= axios
         .post<LoginResult>(
-          buildApiUrl('/identity/api/user/refresh'),
+          buildApiUrl('/identity/user/refresh'),
           { refreshToken },
         )
         .then((response) => response.data)

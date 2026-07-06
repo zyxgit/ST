@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using ST.Infra.Redis.Cache;
 using ST.Infra.Redis.Config;
 using ST.Infra.Redis.Provider;
+using ST.Infra.Redis.Inventory;
+using ST.Infra.Redis.RateLimiting;
 
 namespace ST.Infra.Redis.Extensions;
 
@@ -27,6 +29,24 @@ public static class ServiceCollectionExtensions
 
 		services.AddSingleton<IRedisClient, RedisClientFactory>();
 		services.AddSingleton<IRedisCacheManager, RedisCacheManager>();
+		return services;
+	}
+
+	/// <summary>
+	/// 添加 Redis 分布式限流服务。
+	/// </summary>
+	public static IServiceCollection AddRedisRateLimiting(this IServiceCollection services)
+	{
+		services.AddSingleton<IRateLimiter, RedisRateLimiter>();
+		return services;
+	}
+
+	/// <summary>
+	/// 添加 Redis 库存预扣服务。
+	/// </summary>
+	public static IServiceCollection AddInventoryRedis(this IServiceCollection services)
+	{
+		services.AddSingleton<IInventoryRedisService, InventoryRedisService>();
 		return services;
 	}
 }

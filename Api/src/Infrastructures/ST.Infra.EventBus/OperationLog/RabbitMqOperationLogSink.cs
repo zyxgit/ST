@@ -143,7 +143,8 @@ public sealed class RabbitMqOperationLogSink : IOperationLogSink
 					ContentType = "application/json",
 					Persistent = _options.Durable,
 					Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
-					Type = nameof(OperationLogEntry)
+					Type = nameof(OperationLogEntry),
+					CorrelationId = entry.TraceId,
 				};
 
 				await channel.BasicPublishAsync(

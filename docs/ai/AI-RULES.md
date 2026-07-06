@@ -17,7 +17,7 @@
 
 - **Monorepo**：顶层为 `Api/`、`Web/`、`docs/`。
 - **后端入口**：`Api/src/ST.slnx`；Aspire 编排入口为 `Api/src/Aspire/ST.Aspire.AppHost`。
-- **后端结构**：`Api/src/Microservices/` 下包含 `Identity`、`OperationLog`、`OperationLog.Consumer`、`Test`、`FileUpload`、`Gateway`；`Api/src/ServiceShared/` 与 `Api/src/Infrastructures/` 提供共享启动、认证、异常、日志、EF、Redis、RabbitMQ、Repository、Tasks 等能力。
+- **后端结构**：`Api/src/Microservices/` 下包含 `Identity`、`OperationLog`、`OperationLog.Consumer`、`Test`、`FileUpload`、`Gateway`；`Api/src/ServiceShared/` 与 `Api/src/Infrastructures/` 提供共享启动、认证、异常、日志、EF、Redis、RabbitMQ、Repository、Tasks、**ReliableMessaging（Outbox / Inbox）** 等能力。
 - **网关路由**：`/api/identity/*`、`/api/operationlog/*`、`/api/test/*`、`/api/files/*` 由 `ST.Gateway` 转发，具体以 `Api/src/Microservices/Gateway/ST.Gateway/appsettings.json` 与 `Program.cs` 为准。
 - **前端入口**：`Web/`，技术栈为 Vue 3 + TypeScript + Vite + Pinia + Vue Router + Naive UI + Axios。
 - **GitHub 展示入口**：根目录 `README.md`。项目定位、快速开始、能力总览发生变化时必须同步维护。

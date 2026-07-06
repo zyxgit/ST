@@ -2,11 +2,13 @@ using NLog;
 using Scalar.AspNetCore;
 using ST.MS.FileUpload.Api.Filters;
 using ST.MS.FileUpload.Application;
+using ST.MS.FileUpload.Application.Services;
 using Microsoft.Extensions.Options;
 using ST.MS.FileUpload.Domain;
 using ST.MS.FileUpload.Domain.Services;
 using ST.MS.FileUpload.Infra;
 using ST.MS.FileUpload.Infra.Services;
+using ST.Infra.Redis.Extensions;
 using ST.Shared.Module;
 using ST.Shared.WebApi.Extensions.OpenApi;
 
@@ -22,7 +24,11 @@ try
     };
 
     builder.AddServiceDefaults();
+    builder.Services.AddOpenTelemetry().WithMetrics(metrics => metrics.AddMeter("ST.FileUpload"));
     builder.AddSharedWebApi(modules);
+
+    // Redis（用于分片上传状态记录）
+    builder.Services.AddRedisInfra(builder.Configuration);
 
     // 文件存储配置
     builder.Services.Configure<FileStorageOptions>(
@@ -40,6 +46,14 @@ try
         };
     });
 
+    // 签名 URL 服务
+    builder.Services.AddSingleton<ISignedUrlService, SignedUrlService>();
+
+    // 分片合并后台服务
+    builder.Services.Configure<MultipartMergeOptions>(
+        builder.Configuration.GetSection(MultipartMergeOptions.SectionName));
+    builder.Services.AddHostedService<MultipartMergeService>();
+
     // 文件上传验证过滤器
     builder.Services.AddScoped<FileUploadValidationFilter>();
 
@@ -53,15 +67,9 @@ try
     app.MapDefaultEndpoints();
     app.UseSharedWebApi(modules);
 
-    // 静态文件：允许通过 URL 访问上传目录
+    // 确保上传目录存在（静态文件中间件已移除，文件统一通过 /api/files/{id}/download 访问）
     var uploadsPath = Path.GetFullPath("uploads");
     Directory.CreateDirectory(uploadsPath);
-    app.UseStaticFiles(new StaticFileOptions
-    {
-        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath),
-        RequestPath = "/uploads",
-        ServeUnknownFileTypes = true // 支持所有 MIME 类型
-    });
 
     if (app.Environment.IsDevelopment())
     {

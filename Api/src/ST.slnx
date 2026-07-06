@@ -14,6 +14,8 @@
     <Project Path="Infrastructures/ST.Infra.Redis/ST.Infra.Redis.csproj" Id="0d9697e8-e721-4d34-b8ec-c0452a0534e6" />
     <Project Path="Infrastructures/ST.Infra.Repository/ST.Infra.Repository.csproj" Id="af9045d7-83e5-43ea-b846-7c84ddf2d5b4" />
     <Project Path="Infrastructures/ST.Infra.Tasks/ST.Infra.Tasks.csproj" Id="95d48264-ec57-4ab2-9c8f-2c3408ed059e" />
+    <Project Path="Infrastructures/ST.Infra.ReliableMessaging/ST.Infra.ReliableMessaging.csproj" />
+    <Project Path="Infrastructures/ST.Infra.IntegrationEvents/ST.Infra.IntegrationEvents.csproj" />
   </Folder>
   <Folder Name="/03.Aspire/">
     <Project Path="Aspire/ST.Aspire.AppHost/ST.Aspire.AppHost.csproj" Id="e583e991-409b-48e9-aae2-cb62767ce823" />
@@ -32,6 +34,18 @@
     <Project Path="Microservices/FileUpload/ST.MS.FileUpload.Domain/ST.MS.FileUpload.Domain.csproj" />
     <Project Path="Microservices/FileUpload/ST.MS.FileUpload.Infra/ST.MS.FileUpload.Infra.csproj" />
   </Folder>
+  <Folder Name="/09.Microservices/Inventory/">
+    <Project Path="Microservices/Inventory/ST.MS.Inventory.Api/ST.MS.Inventory.Api.csproj" />
+    <Project Path="Microservices/Inventory/ST.MS.Inventory.Application/ST.MS.Inventory.Application.csproj" />
+    <Project Path="Microservices/Inventory/ST.MS.Inventory.Domain/ST.MS.Inventory.Domain.csproj" />
+    <Project Path="Microservices/Inventory/ST.MS.Inventory.Infra/ST.MS.Inventory.Infra.csproj" />
+  </Folder>
+  <Folder Name="/09.Microservices/Payment/">
+    <Project Path="Microservices/Payment/ST.MS.Payment.Api/ST.MS.Payment.Api.csproj" />
+    <Project Path="Microservices/Payment/ST.MS.Payment.Application/ST.MS.Payment.Application.csproj" />
+    <Project Path="Microservices/Payment/ST.MS.Payment.Domain/ST.MS.Payment.Domain.csproj" />
+    <Project Path="Microservices/Payment/ST.MS.Payment.Infra/ST.MS.Payment.Infra.csproj" />
+  </Folder>
   <Folder Name="/09.Microservices/Gateway/">
     <Project Path="Microservices/Gateway/ST.Gateway/ST.Gateway.csproj" />
   </Folder>
@@ -46,6 +60,12 @@
     <Project Path="Microservices/OperationLog/ST.MS.OperationLog.Application/ST.MS.OperationLog.Application.csproj" />
     <Project Path="Microservices/OperationLog/ST.MS.OperationLog.Consumer/ST.MS.OperationLog.Consumer.csproj" Id="874224b8-80e3-43ef-b7a7-c048ee7e73d3" />
     <Project Path="Microservices/OperationLog/ST.MS.OperationLog.Infra/ST.MS.OperationLog.Infra.csproj" Id="3f65af44-abc2-45ee-8956-df8d7f4d04f4" />
+  </Folder>
+  <Folder Name="/09.Microservices/Order/">
+    <Project Path="Microservices/Order/ST.MS.Order.Api/ST.MS.Order.Api.csproj" />
+    <Project Path="Microservices/Order/ST.MS.Order.Application/ST.MS.Order.Application.csproj" />
+    <Project Path="Microservices/Order/ST.MS.Order.Domain/ST.MS.Order.Domain.csproj" />
+    <Project Path="Microservices/Order/ST.MS.Order.Infra/ST.MS.Order.Infra.csproj" />
   </Folder>
   <Folder Name="/09.Microservices/Test/">
     <Project Path="Microservices/Test/ST.MS.Test.Api/ST.MS.Test.Api.csproj" />

@@ -85,9 +85,17 @@ public class User : AggregateRoot, ISoftDelete
 	/// </summary>
 	public Guid? AvatarFileId { get; private set; }
 
-	public List<UserRole> UserRoles { get; set; } = [];
+	/// <summary>
+	/// 锁定原因（如 "login_fail_exceeded"、"admin_disable"）
+	/// </summary>
+	public string? LockReason { get; private set; }
 
-	public List<Role> Role { get; set; } = [];
+	/// <summary>
+	/// 锁定时间
+	/// </summary>
+	public DateTime? LockedAtUtc { get; private set; }
+
+	public List<UserRole> UserRoles { get; set; } = [];
 
 
 	#region 行为
@@ -117,14 +125,18 @@ public class User : AggregateRoot, ISoftDelete
 		return string.IsNullOrWhiteSpace(phone) ? string.Empty : NormalizeAndValidatePhone(phone);
 	}
 
-	public void Disable()
+	public void Disable(string? reason = null)
 	{
 		IsEnable = false;
+		LockReason = reason;
+		LockedAtUtc = DateTime.UtcNow;
 	}
 
 	public void Enable()
 	{
 		IsEnable = true;
+		LockReason = null;
+		LockedAtUtc = null;
 	}
 
 	public void UpdateBasicInfo(string nickName, string email, string? phone)

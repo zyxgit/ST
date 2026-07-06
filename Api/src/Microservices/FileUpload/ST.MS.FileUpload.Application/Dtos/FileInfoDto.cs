@@ -31,4 +31,7 @@ public sealed class FileInfoDto
 
     /// <summary>上传用户</summary>
     public string? UploaderName { get; init; }
+
+    /// <summary>访问级别（0=Public, 1=Private）</summary>
+    public required int AccessLevel { get; init; }
 }

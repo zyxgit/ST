@@ -5,6 +5,7 @@
 - [现状](#现状)
 - [多存储架构（策略模式）](#多存储架构策略模式)
 - [API 端点](#api-端点)
+- [分片上传](#分片上传)
 - [文件访问控制](#文件访问控制)
 - [文件类型与大小校验](#文件类型与大小校验)
 - [ASP.NET Core 标准写法](#aspnet-core-标准写法)
@@ -82,18 +83,343 @@ builder.Services.AddSingleton<IFileStorageService>(sp =>
 
 ## API 端点
 
+### 普通上传
+
 | 方法 | 路由 | 说明 |
 |------|------|------|
-| `POST` | `/api/files/upload` | 上传文件（multipart/form-data） |
+| `GET` | `/api/files` | 文件列表分页查询（支持按文件名、访问级别、MIME 类型筛选） |
+| `POST` | `/api/files/upload` | 上传文件（multipart/form-data，自动计算 SHA256 Hash） |
 | `GET` | `/api/files/{id}` | 获取文件元数据 |
-| `DELETE` | `/api/files/{id}` | 删除文件 |
-| `GET` | `/api/files/{id}/download` | 下载文件（需认证，返回文件流，不暴露存储路径） |
+| `DELETE` | `/api/files/{id}` | 删除文件（仅上传者可删除） |
+| `GET` | `/api/files/{id}/download` | 下载文件（Private 文件仅上传者可下载） |
 | `GET` | `/api/files/{id}/public/download` | **公开**下载文件（`[AllowAnonymous]`，仅 `FileAccessLevel.Public` 文件可用） |
+
+### 分片上传
+
+| 方法 | 路由 | 说明 |
+|------|------|------|
+| `POST` | `/api/files/multipart/init` | 初始化分片上传 |
+| `GET` | `/api/files/multipart/{uploadId}/status` | 查询上传状态（断点续传） |
+| `POST` | `/api/files/multipart/{uploadId}/chunks/{chunkIndex}` | 上传单个分片 |
+| `POST` | `/api/files/multipart/{uploadId}/complete` | 完成上传（触发合并） |
+| `POST` | `/api/files/multipart/check-by-hash` | 秒传检查 |
+| `DELETE` | `/api/files/multipart/{uploadId}` | 取消上传 |
+
+### 签名下载 URL
+
+| 方法 | 路由 | 说明 |
+|------|------|------|
+| `POST` | `/api/files/signed-url` | 生成签名下载 URL |
+| `GET` | `/api/files/signed/{token}?sig={signature}` | 通过签名 URL 下载文件（无需认证） |
 
 上传返回的 URL 根据 `accessLevel` 动态决定：
 
 - `Public` → `/api/files/{id}/public/download`（浏览器直接可打开）
 - `Private` → `/api/files/{id}/download`（需带 Token）
+
+### 文件列表查询
+
+```json
+GET /api/files?pageIndex=1&pageSize=20&keyword=report&accessLevel=0&contentType=image/
+
+{
+  "pageIndex": 1,
+  "pageSize": 20,
+  "totalCount": 42,
+  "items": [
+    {
+      "id": "xxx",
+      "fileName": "report.pdf",
+      "fileSize": 1048576,
+      "contentType": "application/pdf",
+      "extension": ".pdf",
+      "accessLevel": 0,
+      "url": "/api/files/xxx/public/download",
+      "createTime": "2026-06-24T10:00:00Z",
+      "uploaderName": "admin"
+    }
+  ]
+}
+```
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `pageIndex` | int | 页码（默认 1） |
+| `pageSize` | int | 每页条数（默认 20，最大 100） |
+| `keyword` | string | 文件名模糊搜索 |
+| `accessLevel` | int | 按访问级别筛选（0=Public, 1=Private） |
+| `contentType` | string | 按 MIME 类型前缀筛选（如 `image/`） |
+
+### 文件 Hash 计算
+
+普通上传 `POST /api/files/upload` 在存储文件的同时通过 `SHA256 CryptoStream` 自动计算文件 Hash，存储到 `files.file_hash` 字段。这使得秒传检查 `POST /api/files/multipart/check-by-hash` 能同时匹配普通上传和分片上传的文件。
+
+分片上传的 Hash 由客户端在 `POST /multipart/init` 时通过 `fileHash` 字段提供。
+
+## 分片上传
+
+支持大文件分片上传、断点续传、秒传和异步合并。
+
+### 文件类型校验
+
+`POST /multipart/init` 在创建上传会话前校验：
+
+- **文件扩展名**：与 `FileStorage.AllowedExtensions` 白名单比对
+- **MIME 类型**：若客户端提供了 `contentType` 字段，与 `FileStorage.AllowedContentTypes` 白名单比对
+- **文件大小**：不超过 `FileStorage.MaxFileSize`
+
+校验失败返回 `BusinessException`。这与普通上传的 `FileUploadValidationFilter` 共用同一套白名单配置。
+
+### 数据模型
+
+```
+file_upload_sessions              # 上传会话
+├── id                            # 会话 ID
+├── file_name                     # 原始文件名
+├── file_hash                     # 文件 SHA256（秒传用）
+├── file_size                     # 文件总大小
+├── chunk_size                    # 分片大小
+├── total_chunks                  # 总分片数
+├── uploaded_chunks               # 已上传分片数
+├── status                        # Uploading/Merging/Completed/Failed/Expired
+├── access_level                  # 访问级别（0=Public, 1=Private）
+├── created_by                    # 上传用户 ID
+├── file_id                       # 合并后的文件 ID
+└── expires_at_utc                # 过期时间
+
+file_upload_chunks                # 分片记录
+├── id                            # 分片 ID
+├── upload_id                     # 关联会话 ID
+├── chunk_index                   # 分片序号（从 0 开始）
+├── chunk_hash                    # 分片 SHA256
+├── size                          # 分片大小
+└── storage_path                  # 存储路径
+```
+
+### 上传流程
+
+```
+1. 客户端                          2. 服务端
+   │                                  │
+   ├─ POST /multipart/init ─────────→│ 创建会话，返回 uploadId + totalChunks
+   │                                  │
+   ├─ POST /multipart/{id}/chunks/0 ─→│ 上传分片 0
+   ├─ POST /multipart/{id}/chunks/1 ─→│ 上传分片 1
+   ├─ ...                             │ ...
+   ├─ POST /multipart/{id}/chunks/N ─→│ 上传分片 N
+   │                                  │
+   ├─ POST /multipart/{id}/complete ─→│ 触发异步合并
+   │                                  │
+   └─ GET /multipart/{id}/status ───→│ 查询合并进度
+```
+
+**init 请求参数**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|:----:|------|
+| `fileName` | string | ✅ | 原始文件名 |
+| `fileSize` | long | ✅ | 文件总大小（字节） |
+| `chunkSize` | int | — | 分片大小（默认 5MB） |
+| `fileHash` | string | — | 文件 SHA256（秒传用） |
+| `contentType` | string | — | MIME 类型（用于白名单校验） |
+| `accessLevel` | int | — | 访问级别（0=Public, 1=Private，默认 1） |
+
+### 断点续传
+
+上传中断后，通过 `status` 接口查询已上传的分片：
+
+```json
+GET /api/files/multipart/{uploadId}/status
+
+{
+  "uploadId": "xxx",
+  "totalChunks": 20,
+  "uploadedChunks": 8,
+  "uploadedChunkIndexes": [0, 1, 2, 3, 4, 5, 6, 7],
+  "missingChunkIndexes": [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+  "status": "Uploading"
+}
+```
+
+客户端只需上传 `missingChunkIndexes` 中的分片。
+
+### 秒传
+
+上传前先检查文件 Hash。服务端同时查询 `file_upload_sessions`（已完成的分片上传）和 `files` 表（普通上传的文件），任意一方匹配即返回已有文件信息：
+
+```json
+POST /api/files/multipart/check-by-hash
+{
+  "fileHash": "sha256:abc123...",
+  "fileSize": 104857600
+}
+
+{
+  "exists": true,
+  "fileId": "existing-file-id",
+  "fileName": "video.mp4",
+  "fileSize": 104857600
+}
+```
+
+如果 `exists: true`，直接使用已有文件，无需重复上传。
+
+**去重覆盖范围**：
+- 通过分片上传完成的文件（`file_upload_sessions.Status = Completed`）
+- 通过普通上传的文件（`files.file_hash` 匹配）
+
+> 注意：普通上传的文件 Hash 需要在上传时由客户端或服务端计算并存储到 `files.file_hash` 字段。
+
+### 异步合并
+
+`POST /complete` 接口将上传会话标记为 `Merging` 状态后立即返回，实际合并由 `MultipartMergeService` 后台服务异步执行。
+
+**合并流程**：
+
+```
+1. 客户端                          2. 服务端
+   │                                  │
+   ├─ POST /multipart/{id}/complete ─→│ 校验分片完整性
+   │  ← { status: "merging" }        │ 标记状态为 Merging
+   │                                  │ 清理 Redis 键
+   │                                  │
+   │  （后台服务 PeriodicTimer 轮询）  │
+   │                                  ├─ 扫描 Merging 状态会话
+   │                                  ├─ ConcatenatedReadStream 串联分片流（流式，不占内存）
+   │                                  ├─ 流式上传合并后的文件
+   │                                  ├─ 创建 FileEntity 记录
+   │                                  ├─ 更新状态为 Completed
+   │                                  │
+   ├─ GET /multipart/{id}/status ───→│ 返回 Completed + FileId
+```
+
+**配置**（`appsettings.json`）：
+
+```json
+{
+  "MultipartMerge": {
+    "Enabled": true,
+    "PollingIntervalSeconds": 10,
+    "BatchSize": 5,
+    "MaxRetryCount": 3
+  }
+}
+```
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `Enabled` | 是否启用后台合并服务 | `true` |
+| `PollingIntervalSeconds` | 轮询间隔（秒） | `10` |
+| `BatchSize` | 每批处理的会话数量 | `5` |
+| `MaxRetryCount` | 单个会话最大重试次数 | `3` |
+
+**重试机制**：合并失败的会话保持 `Merging` 状态，下次轮询自动重试。超过 `MaxRetryCount` 次后标记为 `Failed`，错误信息记录在 `session.ErrorMessage` 中。
+
+### 幂等性
+
+- 重复上传同一分片（相同 `uploadId` + `chunkIndex`）返回成功
+- 不会产生脏数据或重复计数
+
+### 过期清理
+
+- 上传会话 24 小时后过期
+- 过期的会话状态变为 `Expired`
+- 建议通过后台任务定期清理过期会话和分片文件
+
+### Redis 键空间
+
+分片上传使用 Redis Set 记录已上传分片，提升断点续传查询性能：
+
+| 键模式 | 类型 | TTL | 说明 |
+|--------|------|-----|------|
+| `file:upload:{uploadId}:chunks` | Set | 24h | 已上传分片序号集合 |
+| `file:upload:{uploadId}:chunks:init` | String | 24h | 初始化标记 |
+
+**示例**：
+```
+file:upload:550e8400-e29b-41d4-a716-446655440000:chunks
+  → Set: [0, 1, 2, 3, 4, 5, 6, 7]
+```
+
+**优势**：
+- 查询已上传分片：O(1) 复杂度，无需查询数据库
+- 幂等检查：`SISMEMBER` 命令，性能优于数据库查询
+- 自动过期：24 小时后自动清理，无需手动维护
+
+## 签名下载 URL
+
+私有文件生成短期有效的下载链接，无需暴露存储路径。
+
+### 使用流程
+
+```
+1. 客户端                          2. 服务端
+   │                                  │
+   ├─ POST /files/signed-url ────────→│ 生成签名 URL
+   │  { fileId, expiresIn }          │ 返回: { url, expiresAt }
+   │                                  │
+   ├─ 分享 URL 给第三方 ─────────────→│
+   │                                  │
+   │  第三方访问签名 URL              │
+   ├─ GET /files/signed/{token} ─────→│ 验证签名 + 过期时间
+   │  ?sig=xxx                       │ 返回文件流
+```
+
+### 生成签名 URL
+
+```json
+POST /api/files/signed-url
+{
+  "fileId": "550e8400-e29b-41d4-a716-446655440000",
+  "expiresIn": 3600
+}
+
+{
+  "url": "https://host/api/files/signed/abc123?sig=xyz789",
+  "expiresAtUtc": "2026-06-23T12:00:00Z",
+  "expiresIn": 3600
+}
+```
+
+### 签名算法
+
+- **算法**：HMAC-SHA256
+- **负载格式**：`{fileId}:{expiresAtTicks}:{userId}`
+- **签名密钥**：配置项 `SignedUrl:SecretKey`
+
+```
+签名 URL 结构：
+/api/files/signed/{Base64UrlEncode(payload)}?sig={HMAC-SHA256(payload, secretKey)}
+```
+
+### 安全特性
+
+| 特性 | 说明 |
+|------|------|
+| 时效性 | 默认 1 小时，最大 24 小时 |
+| 防篡改 | HMAC-SHA256 签名验证 |
+| 绑定用户 | 签名包含用户 ID（可选） |
+| 不暴露路径 | 令牌中不包含存储路径 |
+
+### 配置
+
+```json
+{
+  "SignedUrl": {
+    "SecretKey": "your-secret-key-change-in-production",
+    "BaseUrl": "https://your-domain.com"
+  }
+}
+```
+
+> ⚠️ **启动校验**：`SecretKey` 必须配置且不能为占位符（以 `CHANGE-ME` 开头），否则服务启动时抛出 `InvalidOperationException`。生产环境请使用环境变量或 User Secrets 配置。
+
+### 限制
+
+- 签名 URL 最大有效期：24 小时
+- 令牌过期后无法使用
+- 签名被篡改后验证失败
+- 不支持范围下载（Range Requests）
 
 ## 文件访问控制
 
@@ -108,9 +434,11 @@ public enum FileAccessLevel
 ```
 
 - 上传时可指定 `accessLevel` 参数（表单字段），默认值来自配置 `DefaultAccessLevel`
-- `GET /api/files/{id}/download` 端点受 `[Authorize]` 保护（继承自 `AbstractControllerBase`）
+- `GET /api/files/{id}/download` 端点受 `[Authorize]` 保护，**Private 文件仅上传者可下载**
 - `GET /api/files/{id}/public/download` 端点标记 `[AllowAnonymous]`，仅提供 `FileAccessLevel.Public` 的文件，服务层校验访问级别
+- `DELETE /api/files/{id}` 端点**仅上传者可删除**（校验 `CreateBy == userId`）
 - 上传返回的 URL 根据 `accessLevel` 自动选择对应端点，客户端直接使用无需额外判断
+- 分片上传通过 `init` 请求的 `accessLevel` 字段指定，合并后的 `FileEntity` 继承该值
 
 ## 文件类型与大小校验
 
@@ -272,6 +600,28 @@ FileUpload API 使用全局 `gateway-proxy` 策略（默认 120 req/60s），文
 - 大文件：**直传对象存储（预签名 URL）**，API 只签发凭证与落库元数据。
 - 病毒扫描与 MIME 校验在 **后台任务**（Hangfire）异步完成。
 - 开发环境用 Local，测试/预发用 MinIO，生产用 OSS/MinIO。
+
+## 可观测性指标
+
+FileUpload 服务注册了自定义 OpenTelemetry 指标（Meter: `ST.FileUpload`），在 `FileUploadMetrics.cs` 中定义。
+
+### 指标列表
+
+| 指标名 | 类型 | 说明 |
+|--------|------|------|
+| `st_fileupload_count_total` | Counter | 上传成功数 |
+| `st_fileupload_failed_total` | Counter | 上传失败数 |
+| `st_fileupload_size_bytes` | Histogram | 文件大小分布 (bytes) |
+
+### 埋点位置
+
+| 方法 | 指标 |
+|------|------|
+| `FileAppService.UploadAsync` | count + size_bytes |
+
+### Grafana Dashboard
+
+- **ST - 全局总览**：`deploy/grafana/provisioning/dashboards/st-overview.json`
 
 ## 禁止事项
 

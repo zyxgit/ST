@@ -61,7 +61,7 @@ services:
       retries: 5
 
   # ──────────────────────────────────────────────
-  # Observability – 日志链路（一期）
+  # Observability – 日志 + 指标链路
   # ──────────────────────────────────────────────
   alloy:
     image: grafana/alloy:v1.8.1
@@ -82,6 +82,8 @@ services:
     depends_on:
       loki:
         condition: service_started
+      prometheus:
+        condition: service_started
 
   loki:
     image: grafana/loki:3.4.2
@@ -90,6 +92,22 @@ services:
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
       - loki-data:/loki
+    networks:
+      - st-network
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.3.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-remote-write-receiver
+      - --enable-feature=otlp-write-receiver
+    ports:
+      - "${PROMETHEUS_HOST_PORT:-29090}:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
     networks:
       - st-network
     restart: unless-stopped
@@ -106,12 +124,15 @@ services:
       - "${GRAFANA_HOST_PORT:-23000}:3000"
     volumes:
       - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
       - grafana-data:/var/lib/grafana
     networks:
       - st-network
     restart: unless-stopped
     depends_on:
       loki:
+        condition: service_started
+      prometheus:
         condition: service_started
 
   # ──────────────────────────────────────────────
@@ -246,6 +267,90 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  st-ms-order-api:
+    image: ghcr.io/zyxgit/st/st-ms-order-api:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_order
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
+      ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "${APP_IS_DATA_SEED:-false}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+      OTEL_SERVICE_NAME: st-ms-order-api
+    ports:
+      - "${ORDER_HOST_PORT:-25090}:8080"
+    volumes:
+      - order-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  st-ms-inventory-api:
+    image: ghcr.io/zyxgit/st/st-ms-inventory-api:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_inventory
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
+      ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "${APP_IS_DATA_SEED:-false}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+      OTEL_SERVICE_NAME: st-ms-inventory-api
+    ports:
+      - "${INVENTORY_HOST_PORT:-25091}:8080"
+    volumes:
+      - inventory-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  st-ms-payment-api:
+    image: ghcr.io/zyxgit/st/st-ms-payment-api:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_payment
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
+      ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "${APP_IS_DATA_SEED:-false}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+      OTEL_SERVICE_NAME: st-ms-payment-api
+    ports:
+      - "${PAYMENT_HOST_PORT:-25092}:8080"
+    volumes:
+      - payment-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
   st-gateway:
     image: ghcr.io/zyxgit/st/st-gateway:latest
     environment:
@@ -255,6 +360,9 @@ services:
       DownstreamServices__OperationLog__Address: http://st-ms-operationlog-api:8080
       DownstreamServices__Test__Address: http://st-ms-test-api:8080
       DownstreamServices__FileUpload__Address: http://st-ms-fileupload-api:8080
+      DownstreamServices__Order__Address: http://st-ms-order-api:8080
+      DownstreamServices__Inventory__Address: http://st-ms-inventory-api:8080
+      DownstreamServices__Payment__Address: http://st-ms-payment-api:8080
       Cors__AllowedOrigins__0: http://localhost:280
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
       OTEL_SERVICE_NAME: st-gateway
@@ -269,6 +377,9 @@ services:
       - st-ms-operationlog-api
       - st-ms-fileupload-api
       - st-ms-test-api
+      - st-ms-order-api
+      - st-ms-inventory-api
+      - st-ms-payment-api
     restart: unless-stopped
 
   # ──────────────────────────────────────────────
@@ -297,6 +408,10 @@ volumes:
   fileupload-logs:
   fileupload-uploads:
   test-logs:
+  order-logs:
+  inventory-logs:
+  payment-logs:
   gateway-logs:
   loki-data:
+  prometheus-data:
   grafana-data:

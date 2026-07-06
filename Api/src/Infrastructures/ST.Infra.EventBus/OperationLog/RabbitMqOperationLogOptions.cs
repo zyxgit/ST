@@ -42,4 +42,32 @@ public sealed class RabbitMqOperationLogOptions
 	public bool AutoDelete { get; set; } = false;
 
 	public int PublishRetryCount { get; set; } = 3;
+
+	// ===== 批量消费配置 =====
+
+	/// <summary>
+	/// 是否启用批量消费模式。
+	/// </summary>
+	public bool EnableBatchConsumer { get; set; } = true;
+
+	/// <summary>
+	/// 批量写库大小（条数）。
+	/// </summary>
+	public int BatchSize { get; set; } = 50;
+
+	/// <summary>
+	/// 批量写库时间间隔（秒）。
+	/// 超过此时间即使未达到 BatchSize 也会写库。
+	/// </summary>
+	public int FlushIntervalSeconds { get; set; } = 5;
+
+	/// <summary>
+	/// 最大重试次数。超过后消息不再重试（后续可发往死信队列）。
+	/// </summary>
+	public int MaxRetryCount { get; set; } = 3;
+
+	/// <summary>
+	/// 批量写库失败时是否降级为单条写入。
+	/// </summary>
+	public bool FallbackToSingleOnBatchFailure { get; set; } = true;
 }

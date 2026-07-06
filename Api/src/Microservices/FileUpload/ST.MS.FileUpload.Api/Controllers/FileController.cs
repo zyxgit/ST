@@ -2,10 +2,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using ST.MS.FileUpload.Api.Filters;
+using ST.MS.FileUpload.Application.Dtos;
 using ST.MS.FileUpload.Application.IServices;
 using ST.MS.FileUpload.Domain;
 using ST.MS.FileUpload.Domain.Entities;
+using ST.MS.FileUpload.Domain.Services;
 using ST.Shared.Attributes;
+using ST.Shared.Exceptions;
 using ST.Shared.Security;
 using ST.Shared.WebApi.Controller;
 
@@ -18,14 +21,26 @@ namespace ST.MS.FileUpload.Api.Controllers;
 public sealed class FileController : AbstractControllerBase
 {
     private readonly IFileAppService _fileAppService;
+    private readonly ISignedUrlService _signedUrlService;
     private readonly FileStorageOptions _options;
     private readonly IUserContext _userContext;
 
-    public FileController(IFileAppService fileAppService, IOptions<FileStorageOptions> options, IUserContext userContext)
+    public FileController(IFileAppService fileAppService, ISignedUrlService signedUrlService, IOptions<FileStorageOptions> options, IUserContext userContext)
     {
         _fileAppService = fileAppService;
+        _signedUrlService = signedUrlService;
         _options = options.Value;
         _userContext = userContext;
+    }
+
+    /// <summary>
+    /// 文件列表分页查询
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> GetList([FromQuery] FileQueryInputDto input)
+    {
+        var result = await _fileAppService.GetListAsync(input);
+        return Ok(result);
     }
 
     /// <summary>
@@ -50,13 +65,14 @@ public sealed class FileController : AbstractControllerBase
     }
 
     /// <summary>
-    /// 删除文件
+    /// 删除文件（仅上传者可删除）
     /// </summary>
     [HttpDelete("{id:guid}")]
     [OperationLog("删除文件", RecordRequest = true, RecordResponse = false)]
     public async Task Delete(Guid id)
     {
-        await _fileAppService.DeleteAsync(id);
+        var userId = _userContext.UserId ?? throw new BusinessException("用户未登录");
+        await _fileAppService.DeleteAsync(id, userId);
     }
 
     /// <summary>
@@ -70,13 +86,14 @@ public sealed class FileController : AbstractControllerBase
     }
 
     /// <summary>
-    /// 下载文件（不直接暴露存储路径）
+    /// 下载文件（Private 文件仅上传者可下载）
     /// </summary>
     [HttpGet("{id:guid}/download")]
     [OperationLog("下载文件", RecordRequest = true, RecordResponse = false)]
     public async Task<IActionResult> Download(Guid id)
     {
-        var result = await _fileAppService.DownloadAsync(id);
+        var userId = _userContext.UserId ?? throw new BusinessException("用户未登录");
+        var result = await _fileAppService.DownloadWithAuthAsync(id, userId);
         return File(result.Stream, result.ContentType, result.FileName);
     }
 
@@ -88,6 +105,45 @@ public sealed class FileController : AbstractControllerBase
     public async Task<IActionResult> PublicDownload(Guid id)
     {
         var result = await _fileAppService.DownloadPublicAsync(id);
+        return File(result.Stream, result.ContentType, result.FileName);
+    }
+
+    /// <summary>
+    /// 生成签名下载 URL
+    /// </summary>
+    /// <param name="request">请求参数</param>
+    [HttpPost("signed-url")]
+    [OperationLog("生成签名URL", RecordRequest = true, RecordResponse = true)]
+    public IActionResult GenerateSignedUrl([FromBody] GenerateSignedUrlRequestDto request)
+    {
+        var result = _signedUrlService.GenerateSignedUrl(request.FileId, request.ExpiresIn, _userContext.UserId);
+
+        return Ok(new GenerateSignedUrlResultDto
+        {
+            Url = result.Url,
+            ExpiresAtUtc = result.ExpiresAtUtc,
+            ExpiresIn = result.ExpiresIn
+        });
+    }
+
+    /// <summary>
+    /// 通过签名 URL 下载文件（无需认证）
+    /// </summary>
+    /// <param name="token">签名令牌</param>
+    /// <param name="sig">签名</param>
+    [HttpGet("signed/{token}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> DownloadBySignedUrl(string token, [FromQuery] string sig)
+    {
+        // 验证签名
+        var validation = _signedUrlService.ValidateSignedUrl(token, sig);
+        if (!validation.IsValid)
+        {
+            throw new BusinessException(validation.ErrorMessage ?? "签名 URL 无效");
+        }
+
+        // 下载文件
+        var result = await _fileAppService.DownloadAsync(validation.FileId);
         return File(result.Stream, result.ContentType, result.FileName);
     }
 }

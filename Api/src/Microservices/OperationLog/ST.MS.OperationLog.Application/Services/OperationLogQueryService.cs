@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using ST.MS.OperationLog.Application.Dtos.OperationLog;
 using ST.MS.OperationLog.Application.IServices;
+using ST.MS.OperationLog.Infra.Archive;
 using ST.MS.OperationLog.Infra.DbContext;
 using ST.Shared.Application.Dtos;
 using ST.Shared.Application.Services;
@@ -11,10 +13,17 @@ namespace ST.MS.OperationLog.Application.Services;
 public sealed class OperationLogQueryService : AbstractAppService, IOperationLogQueryService
 {
 	private readonly OperationLogDbContext _dbContext;
+	private readonly IArchiveService? _archiveService;
+	private readonly OperationLogArchiveOptions _archiveOptions;
 
-	public OperationLogQueryService(OperationLogDbContext dbContext)
+	public OperationLogQueryService(
+		OperationLogDbContext dbContext,
+		IArchiveService? archiveService,
+		IOptions<OperationLogArchiveOptions>? archiveOptions)
 	{
 		_dbContext = dbContext;
+		_archiveService = archiveService;
+		_archiveOptions = archiveOptions?.Value ?? new OperationLogArchiveOptions();
 	}
 
 	public async Task<PagedResultDto<OperationLogListItemDto>> GetPageAsync(OperationLogQueryInputDto input)
@@ -113,6 +122,84 @@ public sealed class OperationLogQueryService : AbstractAppService, IOperationLog
 				ExceptionMessage = x.ExceptionMessage
 			})
 			.ToListAsync();
+
+		// 如果启用归档且查询时间范围包含归档数据，合并归档数据
+		if (_archiveOptions.Enabled &&
+			_archiveService is not null &&
+			input.StartTimeUtc.HasValue &&
+			input.StartTimeUtc.Value < DateTime.UtcNow.AddDays(-_archiveOptions.ArchiveAfterDays))
+		{
+			var archiveStartTime = input.StartTimeUtc.Value;
+			var archiveEndTime = input.EndTimeUtc ?? DateTime.UtcNow.AddDays(-_archiveOptions.ArchiveAfterDays);
+
+			var archivedLogs = await _archiveService.QueryArchiveAsync(archiveStartTime, archiveEndTime);
+
+			// 应用筛选条件
+			var filteredArchived = archivedLogs.AsQueryable();
+
+			if (!string.IsNullOrWhiteSpace(input.ServiceName))
+				filteredArchived = filteredArchived.Where(x => x.ServiceName.Contains(input.ServiceName.Trim()));
+
+			if (input.UserId.HasValue)
+				filteredArchived = filteredArchived.Where(x => x.UserId == input.UserId.Value);
+
+			if (!string.IsNullOrWhiteSpace(input.TraceId))
+				filteredArchived = filteredArchived.Where(x => x.TraceId == input.TraceId.Trim());
+
+			if (!string.IsNullOrWhiteSpace(input.Method))
+				filteredArchived = filteredArchived.Where(x => x.Method == input.Method.Trim().ToUpperInvariant());
+
+			if (!string.IsNullOrWhiteSpace(input.Path))
+				filteredArchived = filteredArchived.Where(x => x.Path.Contains(input.Path.Trim()));
+
+			if (!string.IsNullOrWhiteSpace(input.OperationName))
+				filteredArchived = filteredArchived.Where(x => x.OperationName.Contains(input.OperationName.Trim()));
+
+			if (input.Success.HasValue)
+				filteredArchived = filteredArchived.Where(x => x.Success == input.Success.Value);
+
+			if (input.StatusCode.HasValue)
+				filteredArchived = filteredArchived.Where(x => x.StatusCode == input.StatusCode.Value);
+
+			if (!string.IsNullOrWhiteSpace(input.Keyword))
+			{
+				var keyword = input.Keyword.Trim();
+				filteredArchived = filteredArchived.Where(x =>
+					(x.UserName != null && x.UserName.Contains(keyword)) ||
+					x.OperationName.Contains(keyword) ||
+					x.Path.Contains(keyword) ||
+					(x.ExceptionMessage != null && x.ExceptionMessage.Contains(keyword)));
+			}
+
+			// 转换为 DTO
+			var archivedItems = filteredArchived
+				.Select(x => new OperationLogListItemDto
+				{
+					Id = 0, // 归档数据没有 ID
+					CreatedAtUtc = x.CreatedAtUtc,
+					ServiceName = x.ServiceName,
+					UserId = x.UserId,
+					UserName = x.UserName,
+					OperationName = x.OperationName,
+					Path = x.Path,
+					Method = x.Method,
+					Ip = x.Ip,
+					StatusCode = x.StatusCode,
+					Success = x.Success,
+					DurationMs = x.DurationMs,
+					TraceId = x.TraceId,
+					ExceptionMessage = x.ExceptionMessage
+				})
+				.ToList();
+
+			// 合并数据
+			totalCount += archivedItems.Count;
+			items = items.Concat(archivedItems)
+				.OrderByDescending(x => x.CreatedAtUtc)
+				.Skip(skip)
+				.Take(pageSize)
+				.ToList();
+		}
 
 		return new PagedResultDto<OperationLogListItemDto>
 		{

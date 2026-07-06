@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using ST.Infra.Redis.Cache;
 using ST.MS.Identity.Application.Dtos.Role;
 using ST.MS.Identity.Application.IServices;
 using ST.MS.Identity.Domain.Aggregates.RoleAggregate;
@@ -12,10 +14,16 @@ namespace ST.MS.Identity.Application.Services;
 public sealed class RoleService : AbstractAppService, IRoleService
 {
 	private readonly IdentityDbContext _dbContext;
+	private readonly IRedisCacheManager _redisCacheManager;
+	private readonly ILogger<RoleService> _logger;
 
-	public RoleService(IdentityDbContext dbContext)
+	private const string PermissionCachePattern = "auth:user:";
+
+	public RoleService(IdentityDbContext dbContext, IRedisCacheManager redisCacheManager, ILogger<RoleService> logger)
 	{
 		_dbContext = dbContext;
+		_redisCacheManager = redisCacheManager;
+		_logger = logger;
 	}
 
 	public async Task<PagedResultDto<RoleListItemDto>> GetPageAsync(RoleQueryInputDto input)
@@ -133,6 +141,7 @@ public sealed class RoleService : AbstractAppService, IRoleService
 
 		ApplyRolePermissions(role, permissionIds);
 		await _dbContext.SaveChangesAsync();
+		await InvalidateAllPermissionCachesAsync();
 	}
 
 	public async Task ChangePermissionsAsync(Guid id, ChangeRolePermissionsInputDto input)
@@ -142,6 +151,7 @@ public sealed class RoleService : AbstractAppService, IRoleService
 
 		ApplyRolePermissions(role, permissionIds);
 		await _dbContext.SaveChangesAsync();
+		await InvalidateAllPermissionCachesAsync();
 	}
 
 	public async Task DeleteAsync(Guid id)
@@ -162,6 +172,7 @@ public sealed class RoleService : AbstractAppService, IRoleService
 		role.RolePermissions.Clear();
 		role.IsDeleted = true;
 		await _dbContext.SaveChangesAsync();
+		await InvalidateAllPermissionCachesAsync();
 	}
 
 	private async Task<Role> LoadRoleAsync(Guid id)
@@ -234,5 +245,22 @@ public sealed class RoleService : AbstractAppService, IRoleService
 		}
 
 		return value.Trim();
+	}
+
+	/// <summary>
+	/// 失效所有用户的权限缓存。角色/权限变更时调用。
+	/// 因无法从 Redis 高效反查哪些用户拥有指定角色，采用全量清除策略。
+	/// 角色/权限变更是低频管理操作，全量清除可接受。
+	/// </summary>
+	private async Task InvalidateAllPermissionCachesAsync()
+	{
+		try
+		{
+			await _redisCacheManager.RemoveByPatternAsync(PermissionCachePattern);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogWarning(ex, "Failed to invalidate permission caches");
+		}
 	}
 }

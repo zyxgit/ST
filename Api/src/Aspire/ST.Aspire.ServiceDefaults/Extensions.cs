@@ -26,6 +26,11 @@ public static class Extensions
 	{
 		Console.OutputEncoding = Encoding.UTF8;
 
+		// 启动时输出 OTLP 配置，便于诊断可观测性连接问题
+		var otelEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+		var otelProtocol = builder.Configuration["OTEL_EXPORTER_OTLP_PROTOCOL"];
+		Console.WriteLine($"[OTel] Endpoint={otelEndpoint}, Protocol={otelProtocol}");
+
 		builder.ConfigureOpenTelemetry();
 
 		builder.AddDefaultHealthChecks();

@@ -7,13 +7,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
-    <PackageReference Include="Scalar.AspNetCore" Version="2.13.10" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.16.10" />
     <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\Aspire\ST.Aspire.ServiceDefaults\ST.Aspire.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\..\Infrastructures\ST.Infra.Redis\ST.Infra.Redis.csproj" />
   </ItemGroup>
 
 </Project>

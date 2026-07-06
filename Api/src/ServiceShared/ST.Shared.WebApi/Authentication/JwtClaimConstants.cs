@@ -9,5 +9,15 @@ public static class JwtClaimConstants
 
 	// Keep roles compatible with ASP.NET Core authorization:
 	public const string Role = ClaimTypes.Role;
+
+	/// <summary>
+	/// 租户 ID（JWT claim key: "tid"）
+	/// </summary>
+	public const string TenantId = "tid";
+
+	/// <summary>
+	/// 租户编码（JWT claim key: "tcode"）
+	/// </summary>
+	public const string TenantCode = "tcode";
 }
 
