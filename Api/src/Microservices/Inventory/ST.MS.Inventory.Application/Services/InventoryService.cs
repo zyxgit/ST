@@ -155,6 +155,16 @@ public class InventoryService : IInventoryService, ITransientDependency
 		return sku is null ? null : MapToDto(sku);
 	}
 
+	public async Task<List<SkuDto>> GetSkusAsync(CancellationToken ct = default)
+	{
+		var skus = await _dbContext.Skus
+			.AsNoTracking()
+			.OrderBy(s => s.ProductName)
+			.ToListAsync(ct);
+
+		return skus.Select(MapToDto).ToList();
+	}
+
 	public async Task<SkuDto> CreateSkuAsync(CreateSkuDto input, CancellationToken ct = default)
 	{
 		var exists = await _dbContext.Skus.AnyAsync(s => s.SkuId == input.SkuId, ct);

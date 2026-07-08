@@ -18,10 +18,25 @@ export const PermissionCode = {
 
   OperationLogQuery: 'system:operationlog:query',
 
+  DeadLetterQuery: 'system:deadletter:query',
+  DeadLetterReplay: 'system:deadletter:replay',
+
   TenantQuery: 'system:tenant:query',
   TenantCreate: 'system:tenant:create',
   TenantUpdate: 'system:tenant:update',
   TenantDelete: 'system:tenant:delete',
   TenantUser: 'system:tenant:user',
   TenantQuota: 'system:tenant:quota',
+
+  FileQuery: 'system:file:query',
+  FileDelete: 'system:file:delete',
+
+  OrderQuery: 'order:list:query',
+  OrderCancel: 'order:list:cancel',
+
+  InventorySkuQuery: 'inventory:sku:query',
+  InventorySkuCreate: 'inventory:sku:create',
+  InventorySkuStock: 'inventory:sku:stock',
+
+  PaymentRecordQuery: 'payment:record:query',
 } as const

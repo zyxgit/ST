@@ -6,6 +6,7 @@ using ST.Infra.ReliableMessaging.Abstractions;
 using ST.Infra.ReliableMessaging.Models;
 using ST.MS.Order.Application.Dto;
 using ST.MS.Order.Domain.Entities;
+using ST.Shared.Application.Dtos;
 using ST.MS.Order.Domain.Enums;
 using ST.MS.Order.Infra.DbContext;
 using ST.Shared.Application;
@@ -120,6 +121,41 @@ public class OrderService : IOrderService, ITransientDependency
 			.FirstOrDefaultAsync(o => o.Id == orderId, ct);
 
 		return order is null ? null : MapToDto(order);
+	}
+
+	public async Task<PagedResultDto<OrderDto>> GetOrdersAsync(OrderQueryDto query, CancellationToken ct = default)
+	{
+		var (pageIndex, pageSize, skip) = query.Normalize();
+
+		var ordersQuery = _dbContext.Orders
+			.Include(o => o.Items)
+			.AsNoTracking();
+
+		if (!string.IsNullOrWhiteSpace(query.OrderNo))
+		{
+			ordersQuery = ordersQuery.Where(o => o.OrderNo.Contains(query.OrderNo));
+		}
+
+		if (query.Status.HasValue)
+		{
+			ordersQuery = ordersQuery.Where(o => o.Status == query.Status.Value);
+		}
+
+		var totalCount = await ordersQuery.LongCountAsync(ct);
+
+		var orders = await ordersQuery
+			.OrderByDescending(o => o.CreateTime)
+			.Skip(skip)
+			.Take(pageSize)
+			.ToListAsync(ct);
+
+		return new PagedResultDto<OrderDto>
+		{
+			PageIndex = pageIndex,
+			PageSize = pageSize,
+			TotalCount = totalCount,
+			Items = orders.Select(MapToDto).ToList()
+		};
 	}
 
 	public async Task<OrderDto> CancelOrderAsync(Guid orderId, string reason, CancellationToken ct = default)

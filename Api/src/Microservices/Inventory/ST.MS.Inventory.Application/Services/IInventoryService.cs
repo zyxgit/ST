@@ -1,5 +1,6 @@
 using ST.Infra.IntegrationEvents.Orders;
 using ST.MS.Inventory.Application.Dto;
+using ST.Shared.Application.Dtos;
 
 namespace ST.MS.Inventory.Application.Services;
 
@@ -22,6 +23,11 @@ public interface IInventoryService
 	/// 查询 SKU 库存。
 	/// </summary>
 	Task<SkuDto?> GetSkuAsync(Guid skuId, CancellationToken ct = default);
+
+	/// <summary>
+	/// SKU 列表查询。
+	/// </summary>
+	Task<List<SkuDto>> GetSkusAsync(CancellationToken ct = default);
 
 	/// <summary>
 	/// 创建 SKU。

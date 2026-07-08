@@ -22,6 +22,16 @@ public class InventoryController : AbstractControllerBase
 	}
 
 	/// <summary>
+	/// SKU 列表
+	/// </summary>
+	[HttpGet("api/inventory/skus")]
+	public async Task<ActionResult<List<SkuDto>>> GetSkus(CancellationToken ct)
+	{
+		var skus = await _inventoryService.GetSkusAsync(ct);
+		return Ok(skus);
+	}
+
+	/// <summary>
 	/// 创建 SKU
 	/// </summary>
 	[HttpPost("api/inventory/skus")]

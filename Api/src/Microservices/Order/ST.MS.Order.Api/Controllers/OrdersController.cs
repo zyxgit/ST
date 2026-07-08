@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ST.MS.Order.Application.Dto;
 using ST.MS.Order.Application.Services;
+using ST.Shared.Application.Dtos;
 using ST.Shared.WebApi.Controller;
 
 namespace ST.MS.Order.Api.Controllers;
@@ -35,6 +36,16 @@ public class OrdersController : AbstractControllerBase
 		_logger.LogInformation("Order created via API. OrderId={OrderId}", order.Id);
 
 		return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, order);
+	}
+
+	/// <summary>
+	/// 订单列表
+	/// </summary>
+	[HttpGet("api/orders")]
+	public async Task<ActionResult<PagedResultDto<OrderDto>>> GetOrders([FromQuery] OrderQueryDto query, CancellationToken ct)
+	{
+		var result = await _orderService.GetOrdersAsync(query, ct);
+		return Ok(result);
 	}
 
 	/// <summary>

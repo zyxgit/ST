@@ -69,11 +69,8 @@ public sealed class InfraModule : ServiceModule
 	private const string PaymentRecordQueryPermissionId = "11111111-1111-1111-1111-111111111512";
 	// 文件管理
 	private const string FileMenuPermissionId = "11111111-1111-1111-1111-111111111601";
-	private const string FileListPermissionId = "11111111-1111-1111-1111-111111111602";
 	private const string FileQueryPermissionId = "11111111-1111-1111-1111-111111111612";
-	private const string FileUploadPermissionId = "11111111-1111-1111-1111-111111111613";
-	private const string FileDownloadPermissionId = "11111111-1111-1111-1111-111111111614";
-	private const string FileMultipartPermissionId = "11111111-1111-1111-1111-111111111615";
+	private const string FileDeletePermissionId = "11111111-1111-1111-1111-111111111616";
 
 	public override void ConfigureServices(IServiceCollection services)
 	{
@@ -222,11 +219,8 @@ public sealed class InfraModule : ServiceModule
 					('{PaymentRecordQueryPermissionId}'::uuid),
 					-- 文件管理
 					('{FileMenuPermissionId}'::uuid),
-					('{FileListPermissionId}'::uuid),
 					('{FileQueryPermissionId}'::uuid),
-					('{FileUploadPermissionId}'::uuid),
-					('{FileDownloadPermissionId}'::uuid),
-					('{FileMultipartPermissionId}'::uuid)
+					('{FileDeletePermissionId}'::uuid)
 				) AS seeded(permission_id)
 				WHERE NOT EXISTS (
 					SELECT 1

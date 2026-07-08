@@ -171,32 +171,28 @@ SELECT '11111111-1111-1111-1111-111111111512'::uuid, '11111111-1111-1111-1111-11
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'payment:record:query');
 
 -- ============================================================
--- 文件管理
+-- 文件管理（一级菜单）
 -- ============================================================
 
 INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, modify_by, modify_time, create_by, create_time)
-SELECT '11111111-1111-1111-1111-111111111601'::uuid, '11111111-1111-1111-1111-111111111600'::uuid, 'file', '文件管理', 1, '/file', 'folder', NULL, false, true, false, false, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
+SELECT '11111111-1111-1111-1111-111111111600'::uuid, NULL, 'file', '文件管理', 1, '/file', 'folder-open', NULL, false, true, false, false, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'file');
 
 INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, modify_by, modify_time, create_by, create_time)
-SELECT '11111111-1111-1111-1111-111111111602'::uuid, '11111111-1111-1111-1111-111111111601'::uuid, 'file:list', '文件列表', 2, '/file/list', 'document', 'views/admin/files/index.vue', false, true, false, false, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
+SELECT '11111111-1111-1111-1111-111111111601'::uuid, '11111111-1111-1111-1111-111111111600'::uuid, 'file:list', '文件列表', 2, '/file/list', 'list', 'views/admin/files/index.vue', false, true, false, false, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'file:list');
 
 INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, modify_by, modify_time, create_by, create_time)
-SELECT '11111111-1111-1111-1111-111111111612'::uuid, '11111111-1111-1111-1111-111111111602'::uuid, 'file:list:query', '查询文件', 3, NULL, NULL, NULL, false, false, true, false, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'file:list:query');
+SELECT '11111111-1111-1111-1111-111111111602'::uuid, '11111111-1111-1111-1111-111111111600'::uuid, 'file:upload-test', '文件上传测试', 2, '/file/upload-test', 'upload', 'views/admin/file-upload-test/index.vue', false, true, false, false, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'file:upload-test');
 
 INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, modify_by, modify_time, create_by, create_time)
-SELECT '11111111-1111-1111-1111-111111111613'::uuid, '11111111-1111-1111-1111-111111111602'::uuid, 'file:list:upload', '上传文件', 3, NULL, NULL, NULL, false, false, true, false, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'file:list:upload');
+SELECT '11111111-1111-1111-1111-111111111612'::uuid, '11111111-1111-1111-1111-111111111601'::uuid, 'system:file:query', '查询文件', 3, NULL, NULL, NULL, false, false, true, false, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'system:file:query');
 
 INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, modify_by, modify_time, create_by, create_time)
-SELECT '11111111-1111-1111-1111-111111111614'::uuid, '11111111-1111-1111-1111-111111111602'::uuid, 'file:list:download', '下载文件', 3, NULL, NULL, NULL, false, false, true, false, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'file:list:download');
-
-INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, modify_by, modify_time, create_by, create_time)
-SELECT '11111111-1111-1111-1111-111111111615'::uuid, '11111111-1111-1111-1111-111111111602'::uuid, 'file:list:multipart', '分片上传', 3, NULL, NULL, NULL, false, false, true, false, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'file:list:multipart');
+SELECT '11111111-1111-1111-1111-111111111616'::uuid, '11111111-1111-1111-1111-111111111601'::uuid, 'system:file:delete', '删除文件', 3, NULL, NULL, NULL, false, false, true, false, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'system:file:delete');
 
 -- ============================================================
 -- 死信队列（挂在操作日志下）

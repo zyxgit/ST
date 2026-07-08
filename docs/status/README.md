@@ -8,8 +8,8 @@
 |------|------|------|
 | Identity 用户权限 | 已实现 | 用户、角色、菜单、权限、登录、刷新、修改密码 |
 | 多租户基础 | 已实现/预留 | 租户、租户用户、租户配额，业务表预留 tenant_id |
-| OperationLog | 已实现 | API、异步消费、死信查询与重放 |
-| FileUpload | 已实现 | 普通上传/下载、公开下载、签名 URL、分片上传 |
+| OperationLog | 已实现 | API、异步消费、死信查询与重放（含前端管理页面） |
+| FileUpload | 已实现 | 普通上传/下载、公开下载、签名 URL、分片上传、前端文件管理页面 |
 | Gateway | 已实现 | YARP 路由、CORS、ForwardedHeaders、Redis 限流 |
 | ReliableMessaging | 已实现 | Outbox/Inbox 模型、存储、Publisher 后台任务 |
 | IntegrationEvents | 已实现 | Order、Inventory、Payment 集成事件 |
@@ -17,7 +17,7 @@
 | Inventory | 已实现 | SKU、库存增加、冻结/释放、Redis Lua + DB 兜底 |
 | Payment | 已实现 | 模拟支付成功/失败、支付记录查询 |
 | 可观测性一期 | 已实现 | OTLP、Alloy、Loki、Prometheus、Grafana 配置 |
-| 前端管理端 | 已实现 | 登录、用户、角色、菜单、操作日志等管理能力 |
+| 前端管理端 | 已实现 | 登录、用户、角色、菜单、操作日志、死信队列、文件管理、订单管理、库存管理、支付记录等管理能力 |
 
 ## 典型验证入口
 

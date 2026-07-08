@@ -11,8 +11,9 @@ namespace ST.MS.FileUpload.Infra.Services;
 /// </summary>
 public sealed class SignedUrlService : ISignedUrlService
 {
-	private readonly string _secretKey;
+	private readonly string? _secretKey;
 	private readonly string _baseUrl;
+	private bool _validated;
 
 	/// <summary>
 	/// 签名 URL 路径前缀
@@ -21,15 +22,26 @@ public sealed class SignedUrlService : ISignedUrlService
 
 	public SignedUrlService(IConfiguration configuration)
 	{
-		var secretKey = configuration["SignedUrl:SecretKey"];
-		if (string.IsNullOrWhiteSpace(secretKey)
-		    || secretKey == "default-secret-key-change-in-production"
-		    || secretKey.StartsWith("CHANGE-ME", StringComparison.OrdinalIgnoreCase))
+		_secretKey = configuration["SignedUrl:SecretKey"];
+		_baseUrl = configuration["SignedUrl:BaseUrl"] ?? "";
+	}
+
+	/// <summary>
+	/// 首次使用时校验密钥配置，避免构造函数抛异常影响不相关的请求。
+	/// </summary>
+	private string GetValidatedKey()
+	{
+		if (_validated)
+			return _secretKey!;
+
+		if (string.IsNullOrWhiteSpace(_secretKey)
+		    || _secretKey == "default-secret-key-change-in-production"
+		    || _secretKey.StartsWith("CHANGE-ME", StringComparison.OrdinalIgnoreCase))
 			throw new InvalidOperationException(
 				"SignedUrl:SecretKey 未配置或使用了占位符，请在 appsettings.json 或环境变量中设置一个安全的密钥。");
 
-		_secretKey = secretKey;
-		_baseUrl = configuration["SignedUrl:BaseUrl"] ?? "";
+		_validated = true;
+		return _secretKey;
 	}
 
 	/// <inheritdoc />
@@ -44,7 +56,7 @@ public sealed class SignedUrlService : ISignedUrlService
 		var payload = $"{fileId}:{expiresAtUtc.Ticks}:{userId}";
 
 		// 计算签名
-		var signature = ComputeHmacSha256(payload, _secretKey);
+		var signature = ComputeHmacSha256(payload, GetValidatedKey());
 
 		// 构建令牌（Base64 编码的负载）
 		var token = Convert.ToBase64String(Encoding.UTF8.GetBytes(payload))
@@ -85,7 +97,7 @@ public sealed class SignedUrlService : ISignedUrlService
 			var payload = Encoding.UTF8.GetString(payloadBytes);
 
 			// 验证签名
-			var expectedSignature = ComputeHmacSha256(payload, _secretKey);
+			var expectedSignature = ComputeHmacSha256(payload, GetValidatedKey());
 			if (!string.Equals(signature, expectedSignature, StringComparison.Ordinal))
 				return SignedUrlValidationResult.Failure("签名验证失败");
 

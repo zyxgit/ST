@@ -433,21 +433,33 @@ public sealed class MultipartUploadService : IMultipartUploadService
 			.OrderBy(c => c.ChunkIndex)
 			.ToList();
 
-		// 用 ConcatenatedReadStream 串联所有分片流，避免将整个文件加载到内存
-		var chunkStreams = new List<Stream>(orderedChunks.Count);
-		foreach (var chunk in orderedChunks)
-		{
-			chunkStreams.Add(await _fileStorageService.GetStreamAsync(chunk.StoragePath));
-		}
-
 		string filePath;
 		var extension = Path.GetExtension(session.FileName);
 		var contentType = GetContentType(extension);
 
-		await using (var mergedStream = new ConcatenatedReadStream(chunkStreams))
+		// 秒传检查：已有相同 hash + size 的文件，复用其存储路径
+		var existingFile = await _dbContext.Files
+			.AsNoTracking()
+			.FirstOrDefaultAsync(f => f.FileHash == session.FileHash && f.FileSize == session.FileSize);
+
+		if (existingFile is not null)
 		{
-			// 流式上传合并后的文件
-			filePath = await _fileStorageService.UploadAsync(mergedStream, session.FileName, contentType);
+			filePath = existingFile.FilePath;
+		}
+		else
+		{
+			// 用 ConcatenatedReadStream 串联所有分片流，避免将整个文件加载到内存
+			var chunkStreams = new List<Stream>(orderedChunks.Count);
+			foreach (var chunk in orderedChunks)
+			{
+				chunkStreams.Add(await _fileStorageService.GetStreamAsync(chunk.StoragePath));
+			}
+
+			await using (var mergedStream = new ConcatenatedReadStream(chunkStreams))
+			{
+				// 流式上传合并后的文件
+				filePath = await _fileStorageService.UploadAsync(mergedStream, session.FileName, contentType);
+			}
 		}
 
 		// 创建 FileEntity 记录

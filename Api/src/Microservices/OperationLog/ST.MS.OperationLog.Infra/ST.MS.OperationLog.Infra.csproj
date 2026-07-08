@@ -7,6 +7,13 @@
     <UserSecretsId>ST.MS.OperationLog.Infra</UserSecretsId>
   </PropertyGroup>
 
+  <!-- DesignTime DbContext Factory 需要读取连接字符串 -->
+  <ItemGroup>
+    <Content Include="appsettings*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <ItemGroup>
     <Folder Include="Migrations\" />
   </ItemGroup>

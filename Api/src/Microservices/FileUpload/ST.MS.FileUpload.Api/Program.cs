@@ -54,6 +54,11 @@ try
         builder.Configuration.GetSection(MultipartMergeOptions.SectionName));
     builder.Services.AddHostedService<MultipartMergeService>();
 
+    // 分片清理后台服务
+    builder.Services.Configure<MultipartCleanupOptions>(
+        builder.Configuration.GetSection(MultipartCleanupOptions.SectionName));
+    builder.Services.AddHostedService<MultipartCleanupService>();
+
     // 文件上传验证过滤器
     builder.Services.AddScoped<FileUploadValidationFilter>();
 

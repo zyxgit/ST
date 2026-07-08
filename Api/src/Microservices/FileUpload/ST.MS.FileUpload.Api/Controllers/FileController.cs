@@ -65,14 +65,15 @@ public sealed class FileController : AbstractControllerBase
     }
 
     /// <summary>
-    /// 删除文件（仅上传者可删除）
+    /// 删除文件（上传者或拥有 FileDelete 权限的管理员可删除）
     /// </summary>
     [HttpDelete("{id:guid}")]
     [OperationLog("删除文件", RecordRequest = true, RecordResponse = false)]
     public async Task Delete(Guid id)
     {
         var userId = _userContext.UserId ?? throw new BusinessException("用户未登录");
-        await _fileAppService.DeleteAsync(id, userId);
+        var hasDeletePermission = _userContext.Permissions.Contains("system:file:delete");
+        await _fileAppService.DeleteAsync(id, userId, hasDeletePermission);
     }
 
     /// <summary>

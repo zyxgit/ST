@@ -47,13 +47,16 @@ instance.interceptors.response.use(
 
     // 429 限流处理
     if (status === 429) {
-      const retryAfter = parseInt(error.response?.headers?.['retry-after'] || '60', 10)
+      // silent 模式下不弹 dialog，由调用方自行处理重试
+      if (!(originalRequest as any)?.silent) {
+        const retryAfter = parseInt(error.response?.headers?.['retry-after'] || '60', 10)
 
-      dialog.warning({
-        title: '操作太频繁',
-        content: `请求过于频繁，请在 ${retryAfter} 秒后重试。`,
-        positiveText: '我知道了',
-      })
+        dialog.warning({
+          title: '操作太频繁',
+          content: `请求过于频繁，请在 ${retryAfter} 秒后重试。`,
+          positiveText: '我知道了',
+        })
+      }
 
       return Promise.reject(error)
     }

@@ -13,8 +13,8 @@ public interface IFileAppService : IAppService
     /// <summary>上传文件</summary>
     Task<FileUploadResultDto> UploadAsync(Stream stream, string fileName, string contentType, FileAccessLevel accessLevel = FileAccessLevel.Private, string? uploaderName = null);
 
-    /// <summary>删除文件（仅上传者可删除）</summary>
-    Task DeleteAsync(Guid id, Guid userId);
+    /// <summary>删除文件（上传者或拥有 FileDelete 权限的管理员可删除）</summary>
+    Task DeleteAsync(Guid id, Guid userId, bool hasDeletePermission = false);
 
     /// <summary>获取文件信息</summary>
     Task<FileInfoDto> GetAsync(Guid id);
