@@ -33,12 +33,14 @@ AI 接到用户需求后，必须先进行审查：
 1. 阅读 AGENTS.md 与 docs/ai/README.md
 2. 按任务选择 docs/skills/*.md
 3. 用 rg / find / 源码确认事实
-4. 做需求合理性审查
-5. 给出小范围计划
-6. 修改代码/文档
-7. 运行最窄有意义检查
-8. 更新文档和状态
-9. 总结变更、测试、风险
+4. 如果是新服务，先阅读 docs/backend/service-template.md；如果是新接口，先阅读 docs/backend/api-routing.md
+5. 做需求合理性审查
+6. 给出小范围计划
+7. 修改代码/文档
+8. 对新接口执行下游直连 + Gateway 外部路径双验证，避免 404/502
+9. 运行最窄有意义检查
+10. 更新文档和状态
+11. 总结变更、测试、风险
 ```
 
 ## 任务拆分规则
@@ -91,6 +93,8 @@ AI 接到用户需求后，必须先进行审查：
 |------|------|
 | 文档-only | `git diff --check` |
 | 后端 | `dotnet build Api/src/ST.slnx` |
+| 新服务 | `curl -i http://localhost:<service-port>/health` + `curl -i http://localhost:<gateway-port>/<external-api>` |
+| 新接口 | 下游直连路径 + Gateway 外部路径各请求一次 |
 | 前端 | `cd Web && pnpm build` |
 | 路径/引用核查 | `rg "旧路径或旧标题"` |
 
@@ -102,3 +106,5 @@ AI 接到用户需求后，必须先进行审查：
 - 禁止提交真实密钥、生产连接串、JWT SigningKey。
 - 禁止仅新增空文档或标题文档。
 - 禁止让文档与代码中的路径、服务名、路由、配置键不一致。
+- 禁止新服务未接入 Gateway/Aspire/Docker Compose 就标记完成。
+- 禁止新接口未验证下游直连路径和 Gateway 外部路径就标记完成。

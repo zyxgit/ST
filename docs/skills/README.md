@@ -14,7 +14,7 @@ Skills 是给 AI Agent 的高密度执行卡，不替代完整文档。完整背
 | Skill | 文件 | 场景 |
 |-------|------|------|
 | Architecture | [`architecture.md`](./architecture.md) | 服务边界、Gateway、Aspire、消息、部署拓扑 |
-| Backend | [`backend.md`](./backend.md) | .NET 微服务、Controller、Application、Domain、Infra |
+| Backend | [`backend.md`](./backend.md) | .NET 微服务、Controller、Application、Domain、Infra、防 404/502 |
 | Frontend | [`frontend.md`](./frontend.md) | Vue、Router、Pinia、Axios、组件 |
 | Database | [`database.md`](./database.md) | EF Core、迁移、事务、Redis、Outbox/Inbox |
 | Auth | [`auth.md`](./auth.md) | JWT、权限、用户上下文、租户 |

@@ -34,7 +34,12 @@ Api/src/Microservices/<Service>/
 | Domain | 实体、值对象、枚举、领域方法 | 依赖 EF、Redis、HTTP、RabbitMQ |
 | Infra | DbContext、迁移、Repository、外部服务实现 | 反向依赖 Api |
 
-## Controller 与 API
+## 服务模板、Controller 与 API
+
+新增服务和接口必须先阅读：
+
+- [`service-template.md`](./service-template.md)：新微服务创建、Gateway/Aspire/Docker Compose 接入、防 502 清单。
+- [`api-routing.md`](./api-routing.md)：Controller 路由、Gateway Transform、下游路径、防 404 清单。
 
 - Controller 保持薄层，只负责协议转换和调用应用服务。
 - 对外路径变更必须同步 Gateway、前端 API、文档。
@@ -87,7 +92,8 @@ Api/src/Microservices/<Service>/
 - [ ] 四层项目创建并加入 `Api/src/ST.slnx`。
 - [ ] Api 层接入共享启动、OpenAPI、认证、异常、日志。
 - [ ] DbContext、实体、迁移、种子数据（如需要）。
-- [ ] Gateway 路由和 DownstreamServices。
+- [ ] Gateway 路由、DownstreamServices、Clusters 与服务实际监听端口一致。
+- [ ] 至少一个业务接口完成“下游直连 + Gateway 外部路径”双路径验证，避免 404/502。
 - [ ] Aspire AppHost 编排。
 - [ ] Docker Compose 服务、环境变量、健康检查/依赖。
 - [ ] 文档更新：README、architecture、backend/database/devops/status。

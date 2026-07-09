@@ -60,7 +60,14 @@ ST.MS.<Service>.Infra        # DbContext、迁移、外部基础设施实现
 | `/api/payments/{**catch-all}` | Payment |
 | `/docs/{service}/{**catch-all}` | 对应服务文档 |
 
-新增服务必须同步：Gateway `ReverseProxy`、`DownstreamServices`、Aspire AppHost、Docker Compose、文档和必要的前端代理配置。
+新增服务必须同步：Gateway `ReverseProxy`、`DownstreamServices`、`Clusters`、Aspire AppHost、Docker Compose、文档和必要的前端代理配置。新接口必须同时记录 Gateway 外部路径、Transform 后下游路径和 Controller Route；具体清单见 [`../backend/service-template.md`](../backend/service-template.md) 与 [`../backend/api-routing.md`](../backend/api-routing.md)。
+
+## 404/502 防线
+
+- **404 多数来自路由不一致**：Controller Route、Action Route、Gateway `PathRemovePrefix` / `PathPrefix` 组合后没有落到真实下游路径。
+- **502 多数来自下游不可达**：服务未启动、端口错误、http/https 写错、Docker 中使用了错误的 localhost、依赖缺失导致服务启动失败。
+- 新服务必须先直连下游 `/health` 和业务 API，再通过 Gateway 验证同一 API。
+- 新接口必须在 PR 中列出外部路径、下游路径、Controller Route、权限码和验证命令。
 
 ## 跨服务事务与消息
 

@@ -15,7 +15,8 @@ This file applies to the whole repository.
 - Do not implement an entire roadmap phase in one prompt. Split work into small tasks with clear write scope, acceptance criteria, and tests.
 - Before editing, inspect existing code with `rg` and follow current project patterns.
 - For any feature change, update documentation in the same change set.
-- For new services, wire Aspire AppHost, Gateway routing, Docker Compose, configuration, migrations, and docs in the same task or explicitly sequenced subtasks.
+- For new services, read `docs/backend/service-template.md`; wire Aspire AppHost, Gateway routing/clusters/destinations, Docker Compose, configuration, migrations, and docs in the same task or explicitly sequenced subtasks. Verify both downstream direct access and Gateway access to avoid 502.
+- For new APIs, read `docs/backend/api-routing.md`; document and verify Gateway external path, transformed downstream path, Controller route, HTTP method, and permission code to avoid 404.
 - Do not commit secrets, production connection strings, JWT signing keys, or local-only environment files.
 
 ## Validation baseline

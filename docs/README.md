@@ -7,7 +7,7 @@
 | 分区 | 说明 |
 |------|------|
 | [`architecture/`](./architecture/README.md) | 系统架构、服务边界、网关、消息、可观测性 |
-| [`backend/`](./backend/README.md) | .NET 后端开发规范、分层、EF、认证、缓存、消息 |
+| [`backend/`](./backend/README.md) | .NET 后端开发规范、服务模板、接口路由、防 404/502、分层、EF、认证、缓存、消息 |
 | [`frontend/`](./frontend/README.md) | Vue 前端开发规范、路由、状态、请求、权限、组件 |
 | [`devops/`](./devops/README.md) | 本地运行、Docker Compose、CI/CD、可观测性、环境变量 |
 | [`database/`](./database/README.md) | PostgreSQL、EF 迁移、Redis 键空间、Outbox/Inbox 表 |

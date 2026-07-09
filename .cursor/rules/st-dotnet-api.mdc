@@ -8,3 +8,4 @@ globs: Api/src/**/*
 - Follow service layering: Api / Application / Domain / Infra.
 - Use shared startup, exception, auth, logging, EF, Redis, EventBus, and ReliableMessaging patterns already in the repository.
 - For backend changes, prefer `dotnet build Api/src/ST.slnx`.
+- For new services read `docs/backend/service-template.md`; for new APIs read `docs/backend/api-routing.md` and verify downstream + Gateway paths to avoid 404/502.
