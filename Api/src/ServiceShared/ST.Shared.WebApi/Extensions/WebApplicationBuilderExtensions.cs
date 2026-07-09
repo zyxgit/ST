@@ -115,7 +115,7 @@ public static class WebApplicationBuilderExtensions
 		var rateLimiterEnabled = builder.Configuration.GetValue("RateLimiting:Enabled", false);
 		if (rateLimiterEnabled)
 		{
-			var permitLimit = builder.Configuration.GetValue("RateLimiting:PermitLimit", 60L);
+			var permitLimit = builder.Configuration.GetValue("RateLimiting:PermitLimit", 120L);
 			var windowSeconds = builder.Configuration.GetValue("RateLimiting:WindowSeconds", 60);
 
 			builder.Services.AddRateLimiter(options =>

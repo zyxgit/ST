@@ -2,6 +2,7 @@ import {
   AppsOutline,
   BookOutline,
   DocumentTextOutline,
+  FlashOutline,
   FolderOpenOutline,
   GridOutline,
   HomeOutline,
@@ -19,6 +20,7 @@ export const menuIconMap: Record<string, Component> = {
   'apps-outline': AppsOutline,
   'book-outline': BookOutline,
   'document-text-outline': DocumentTextOutline,
+  'flash-outline': FlashOutline,
   'folder-open-outline': FolderOpenOutline,
   'grid-outline': GridOutline,
   'home-outline': HomeOutline,
@@ -45,6 +47,7 @@ export const menuIconOptions = [
   { label: '宫格', value: 'grid-outline' },
   { label: '书籍', value: 'book-outline' },
   { label: '钥匙', value: 'key-outline' },
+  { label: '闪电', value: 'flash-outline' },
 ]
 
 export function resolveMenuIcon(iconName?: string | null) {

@@ -94,6 +94,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         meta: { title: '订单列表', permission: PermissionCode.OrderQuery },
       },
       {
+        path: 'order/flash-sale',
+        name: 'order-flash-sale',
+        component: () => import('@/views/admin/FlashSaleView.vue'),
+        meta: { title: '抢购模拟', permission: PermissionCode.OrderQuery },
+      },
+      {
         path: 'inventory',
         name: 'inventory',
         redirect: '/inventory/skus',

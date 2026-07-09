@@ -130,6 +130,10 @@ INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component,
 SELECT '11111111-1111-1111-1111-111111111313'::uuid, '11111111-1111-1111-1111-111111111302'::uuid, 'order:list:cancel', '取消订单', 3, NULL, NULL, NULL, false, false, true, false, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'order:list:cancel');
 
+INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, modify_by, modify_time, create_by, create_time)
+SELECT '11111111-1111-1111-1111-111111111303'::uuid, '11111111-1111-1111-1111-111111111301'::uuid, 'order:flash-sale', '抢购模拟', 2, '/order/flash-sale', 'flash-outline', 'views/admin/flash-sale/index.vue', false, true, false, false, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'order:flash-sale');
+
 -- ============================================================
 -- 库存管理
 -- ============================================================

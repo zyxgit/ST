@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ST.Infra.EventBus.Abstractions;
 using ST.Infra.IntegrationEvents.Inventory;
+using ST.Infra.Redis.Inventory;
 using ST.Infra.ReliableMessaging.Abstractions;
 using ST.Infra.ReliableMessaging.Models;
 using ST.MS.Order.Domain.Enums;
@@ -11,12 +12,13 @@ namespace ST.MS.Order.Application.Services;
 
 /// <summary>
 /// 处理 InventoryFreezeFailedIntegrationEvent。
-/// 将订单标记为 Failed，Saga 标记失败。
+/// 将订单标记为 Failed，Saga 标记失败，释放 Redis 预扣库存。
 /// </summary>
 public class InventoryFreezeFailedHandler : IIntegrationEventHandler<InventoryFreezeFailedIntegrationEvent>
 {
 	private readonly OrderDbContext _dbContext;
 	private readonly IInboxStore _inboxStore;
+	private readonly IInventoryRedisService _inventoryRedis;
 	private readonly ILogger<InventoryFreezeFailedHandler> _logger;
 
 	private const string Consumer = "OrderService";
@@ -24,10 +26,12 @@ public class InventoryFreezeFailedHandler : IIntegrationEventHandler<InventoryFr
 	public InventoryFreezeFailedHandler(
 		OrderDbContext dbContext,
 		IInboxStore inboxStore,
+		IInventoryRedisService inventoryRedis,
 		ILogger<InventoryFreezeFailedHandler> logger)
 	{
 		_dbContext = dbContext;
 		_inboxStore = inboxStore;
+		_inventoryRedis = inventoryRedis;
 		_logger = logger;
 	}
 
@@ -49,8 +53,9 @@ public class InventoryFreezeFailedHandler : IIntegrationEventHandler<InventoryFr
 			ReceivedAtUtc = DateTime.UtcNow
 		});
 
-		// 更新订单状态
+		// 更新订单状态（加载 Items 用于释放 Redis 预扣）
 		var order = await _dbContext.Orders
+			.Include(o => o.Items)
 			.FirstOrDefaultAsync(o => o.Id == @event.OrderId, cancellationToken);
 
 		if (order is null)
@@ -62,6 +67,12 @@ public class InventoryFreezeFailedHandler : IIntegrationEventHandler<InventoryFr
 		}
 
 		order.MarkFailed(@event.Reason);
+
+		// 释放 Redis 预扣库存（Order Service 创建订单时已预扣）
+		foreach (var item in order.Items)
+		{
+			await _inventoryRedis.ReleaseAsync(item.SkuId, item.Quantity, cancellationToken);
+		}
 
 		// 更新 Saga 状态
 		if (order.SagaInstanceId.HasValue)

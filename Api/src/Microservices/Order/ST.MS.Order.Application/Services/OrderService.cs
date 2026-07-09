@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ST.Infra.IntegrationEvents.Orders;
+using ST.Infra.Redis.Inventory;
 using ST.Infra.ReliableMessaging.Abstractions;
 using ST.Infra.ReliableMessaging.Models;
 using ST.MS.Order.Application.Dto;
@@ -25,6 +26,7 @@ public class OrderService : IOrderService, ITransientDependency
 {
 	private readonly OrderDbContext _dbContext;
 	private readonly IOutboxStore _outboxStore;
+	private readonly IInventoryRedisService _inventoryRedis;
 	private readonly ICurrentTenantAccessor _tenantAccessor;
 	private readonly ITenantQuotaService? _quotaService;
 	private readonly ILogger<OrderService> _logger;
@@ -34,12 +36,14 @@ public class OrderService : IOrderService, ITransientDependency
 	public OrderService(
 		OrderDbContext dbContext,
 		IOutboxStore outboxStore,
+		IInventoryRedisService inventoryRedis,
 		ICurrentTenantAccessor tenantAccessor,
 		ILogger<OrderService> logger,
 		ITenantQuotaService? quotaService = null)
 	{
 		_dbContext = dbContext;
 		_outboxStore = outboxStore;
+		_inventoryRedis = inventoryRedis;
 		_tenantAccessor = tenantAccessor;
 		_quotaService = quotaService;
 		_logger = logger;
@@ -56,6 +60,46 @@ public class OrderService : IOrderService, ITransientDependency
 		if (_tenantAccessor.TenantId.HasValue && _quotaService is not null)
 		{
 			await _quotaService.CheckOrderQuotaAsync(_tenantAccessor.TenantId.Value, ct);
+		}
+
+		// ── 同步库存预扣（Redis Lua 原子操作，check-and-decrement 一步完成） ──
+		// 解决并发竞态：多个请求同时通过只读检查导致超卖
+		var frozenItems = new List<(Guid SkuId, int Quantity)>();
+		try
+		{
+			foreach (var item in input.Items)
+			{
+				var frozen = await _inventoryRedis.TryFreezeAsync(item.SkuId, item.Quantity, ct);
+				if (!frozen)
+				{
+					// 库存不足，回滚已预扣的项
+					foreach (var prev in frozenItems)
+					{
+						await _inventoryRedis.ReleaseAsync(prev.SkuId, prev.Quantity, ct);
+					}
+
+					throw new BusinessException(
+						$"商品「{item.ProductName}」库存不足",
+						errorCode: "INSUFFICIENT_STOCK");
+				}
+
+				frozenItems.Add((item.SkuId, item.Quantity));
+			}
+		}
+		catch (BusinessException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			// 非业务异常也要回滚 Redis 预扣
+			foreach (var prev in frozenItems)
+			{
+				await _inventoryRedis.ReleaseAsync(prev.SkuId, prev.Quantity, ct);
+			}
+
+			_logger.LogError(ex, "Redis pre-freeze failed unexpectedly.");
+			throw;
 		}
 
 		var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -81,11 +125,13 @@ public class OrderService : IOrderService, ITransientDependency
 		order.SagaInstanceId = saga.Id;
 
 		// 写入 Outbox 消息（与订单同一事务）
+		// RedisPreFrozen=true 告知 Inventory 服务跳过 Redis 预扣，仅做 DB 兜底
 		var integrationEvent = new OrderCreatedIntegrationEvent(
 			order.Id,
 			order.UserId,
 			order.TotalAmount,
-			orderItems.Select(i => new OrderItemData(i.SkuId, i.ProductName, i.Quantity, i.UnitPrice)).ToList());
+			orderItems.Select(i => new OrderItemData(i.SkuId, i.ProductName, i.Quantity, i.UnitPrice)).ToList(),
+			RedisPreFrozen: true);
 
 		var outboxMessage = new OutboxMessage
 		{
@@ -101,7 +147,20 @@ public class OrderService : IOrderService, ITransientDependency
 		_dbContext.SagaInstances.Add(saga);
 		_outboxStore.Add(outboxMessage);
 
-		await _dbContext.SaveChangesAsync(ct);
+		try
+		{
+			await _dbContext.SaveChangesAsync(ct);
+		}
+		catch
+		{
+			// DB 保存失败，回滚 Redis 预扣
+			foreach (var prev in frozenItems)
+			{
+				await _inventoryRedis.ReleaseAsync(prev.SkuId, prev.Quantity, ct);
+			}
+
+			throw;
+		}
 
 		sw.Stop();
 		OrderMetrics.OrderCreated.Add(1);
@@ -164,6 +223,15 @@ public class OrderService : IOrderService, ITransientDependency
 			.Include(o => o.Items)
 			.FirstOrDefaultAsync(o => o.Id == orderId, ct)
 			?? throw new BusinessException("订单不存在", errorCode: "ORDER_NOT_FOUND");
+
+		// Pending 状态说明 Redis 预扣已完成但 DB 冻结可能未执行，立即释放 Redis 预扣
+		if (order.Status == OrderStatus.Pending)
+		{
+			foreach (var item in order.Items)
+			{
+				await _inventoryRedis.ReleaseAsync(item.SkuId, item.Quantity, ct);
+			}
+		}
 
 		order.Cancel(reason);
 

@@ -32,7 +32,7 @@ public class InventoryService : IInventoryService, ITransientDependency
 		_logger = logger;
 	}
 
-	public async Task<bool> FreezeInventoryAsync(Guid orderId, List<OrderItemData> items, CancellationToken ct = default)
+	public async Task<bool> FreezeInventoryAsync(Guid orderId, List<OrderItemData> items, bool skipRedisFreeze = false, CancellationToken ct = default)
 	{
 		// 幂等检查：同一订单已冻结则跳过
 		var existingFreeze = await _dbContext.FreezeRecords
@@ -43,28 +43,31 @@ public class InventoryService : IInventoryService, ITransientDependency
 			return true;
 		}
 
-		// ── 第一层：Redis Lua 预扣 ──
+		// ── 第一层：Redis Lua 预扣（Order Service 已预扣时跳过） ──
 		var redisReserved = new List<(Guid SkuId, int Quantity)>();
 
-		foreach (var item in items)
+		if (!skipRedisFreeze)
 		{
-			var success = await _inventoryRedis.TryFreezeAsync(item.SkuId, item.Quantity, ct);
-			if (!success)
+			foreach (var item in items)
 			{
-				// Redis 库存不足，回滚已预扣的项
-				_logger.LogWarning(
-					"Redis insufficient stock for SkuId={SkuId}. Rolling back {Count} reserved items.",
-					item.SkuId, redisReserved.Count);
-
-				foreach (var reserved in redisReserved)
+				var success = await _inventoryRedis.TryFreezeAsync(item.SkuId, item.Quantity, ct);
+				if (!success)
 				{
-					await _inventoryRedis.ReleaseAsync(reserved.SkuId, reserved.Quantity, ct);
+					// Redis 库存不足，回滚已预扣的项
+					_logger.LogWarning(
+						"Redis insufficient stock for SkuId={SkuId}. Rolling back {Count} reserved items.",
+						item.SkuId, redisReserved.Count);
+
+					foreach (var reserved in redisReserved)
+					{
+						await _inventoryRedis.ReleaseAsync(reserved.SkuId, reserved.Quantity, ct);
+					}
+
+					return false;
 				}
 
-				return false;
+				redisReserved.Add((item.SkuId, item.Quantity));
 			}
-
-			redisReserved.Add((item.SkuId, item.Quantity));
 		}
 
 		// ── 第二层：DB 乐观锁兜底 ──
@@ -152,7 +155,11 @@ public class InventoryService : IInventoryService, ITransientDependency
 	public async Task<SkuDto?> GetSkuAsync(Guid skuId, CancellationToken ct = default)
 	{
 		var sku = await _dbContext.Skus.FirstOrDefaultAsync(s => s.SkuId == skuId, ct);
-		return sku is null ? null : MapToDto(sku);
+		if (sku is null) return null;
+
+		// 优先读取 Redis 实时库存（抢购场景下 Redis 先于 DB 更新）
+		var redisStock = await _inventoryRedis.GetStockAsync(skuId, ct);
+		return MapToDto(sku, redisStock);
 	}
 
 	public async Task<List<SkuDto>> GetSkusAsync(CancellationToken ct = default)
@@ -162,7 +169,15 @@ public class InventoryService : IInventoryService, ITransientDependency
 			.OrderBy(s => s.ProductName)
 			.ToListAsync(ct);
 
-		return skus.Select(MapToDto).ToList();
+		// 逐个读取 Redis 实时库存
+		var result = new List<SkuDto>();
+		foreach (var sku in skus)
+		{
+			var redisStock = await _inventoryRedis.GetStockAsync(sku.SkuId, ct);
+			result.Add(MapToDto(sku, redisStock));
+		}
+
+		return result;
 	}
 
 	public async Task<SkuDto> CreateSkuAsync(CreateSkuDto input, CancellationToken ct = default)
@@ -203,15 +218,18 @@ public class InventoryService : IInventoryService, ITransientDependency
 		return MapToDto(sku);
 	}
 
-	private static SkuDto MapToDto(Sku sku)
+	/// <summary>
+	/// 映射 SKU DTO。Redis 有实时数据时以 Redis 为准（抢购场景下 Redis 先于 DB 更新）。
+	/// </summary>
+	private static SkuDto MapToDto(Sku sku, (int Available, int Frozen, int Sold)? redisStock = null)
 	{
 		return new SkuDto
 		{
 			SkuId = sku.SkuId,
 			ProductName = sku.ProductName,
-			Available = sku.Available,
-			Frozen = sku.Frozen,
-			Sold = sku.Sold,
+			Available = redisStock?.Available ?? sku.Available,
+			Frozen = redisStock?.Frozen ?? sku.Frozen,
+			Sold = redisStock?.Sold ?? sku.Sold,
 			TotalStock = sku.TotalStock
 		};
 	}

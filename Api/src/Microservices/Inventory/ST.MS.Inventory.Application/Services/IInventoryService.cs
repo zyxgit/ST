@@ -10,9 +10,13 @@ namespace ST.MS.Inventory.Application.Services;
 public interface IInventoryService
 {
 	/// <summary>
-	/// 冻结库存（DB 乐观锁）。
+	/// 冻结库存（Redis 预扣 + DB 乐观锁）。
 	/// </summary>
-	Task<bool> FreezeInventoryAsync(Guid orderId, List<OrderItemData> items, CancellationToken ct = default);
+	/// <param name="orderId">订单 ID</param>
+	/// <param name="items">订单项</param>
+	/// <param name="skipRedisFreeze">跳过 Redis 预扣（Order Service 已完成时传 true）</param>
+	/// <param name="ct">取消令牌</param>
+	Task<bool> FreezeInventoryAsync(Guid orderId, List<OrderItemData> items, bool skipRedisFreeze = false, CancellationToken ct = default);
 
 	/// <summary>
 	/// 释放冻结库存。
