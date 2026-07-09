@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DataTableColumns, FormInst, FormRules } from 'naive-ui'
-import { NButton, NCard, NDataTable, NDrawer, NDrawerContent, NForm, NFormItem, NInput, NSelect, NSpace, NSwitch, NTag } from 'naive-ui'
+import { NButton, NCard, NDataTable, NDrawer, NDrawerContent, NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace, NSwitch, NTag } from 'naive-ui'
 import { computed, h, nextTick, onMounted, reactive, ref } from 'vue'
 
 import IconPicker from '@/components/common/IconPicker.vue'
@@ -35,6 +35,7 @@ const formValue = reactive({
   isLink: false,
   keepAlive: false,
   isHide: false,
+  sort: 0,
 })
 
 const typeOptions = [
@@ -59,6 +60,7 @@ const canDelete = computed(() => authStore.hasPermission(PermissionCode.MenuDele
 const columns = computed<DataTableColumns<MenuTreeNode>>(() => [
   { title: '名称', key: 'name' },
   { title: '编码', key: 'code' },
+  { title: '排序', key: 'sort', width: 70, align: 'center' },
   {
     title: '类型',
     key: 'type',
@@ -126,6 +128,7 @@ function resetForm(parentId: string | null = null) {
   formValue.isLink = false
   formValue.keepAlive = false
   formValue.isHide = false
+  formValue.sort = 0
 }
 
 function openCreateModal(parentId: string | null = null) {
@@ -147,6 +150,7 @@ async function openEditModal(id: string) {
   formValue.isLink = detail.isLink
   formValue.keepAlive = detail.keepAlive
   formValue.isHide = detail.isHide
+  formValue.sort = detail.sort ?? 0
   showModal.value = true
   void nextTick(() => formRef.value?.restoreValidation())
 }
@@ -172,6 +176,7 @@ async function handleSubmit() {
     isLink: formValue.isLink,
     keepAlive: formValue.keepAlive,
     isHide: formValue.isHide,
+    sort: formValue.sort,
   }
 
   if (editingId.value) {
@@ -253,6 +258,9 @@ onMounted(async () => {
         </n-form-item>
         <n-form-item label="图标">
           <IconPicker v-model:value="formValue.menuIcon" title="选择菜单图标" />
+        </n-form-item>
+        <n-form-item label="排序号">
+          <n-input-number v-model:value="formValue.sort" :min="0" :max="999" style="width: 120px" />
         </n-form-item>
         <n-space>
           <n-form-item label="外链">

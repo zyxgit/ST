@@ -61,6 +61,7 @@ public sealed class MenuService : AbstractAppService, IMenuService
 				IsLink = x.IsLink,
 				KeepAlive = x.KeepAlive,
 				IsHide = x.IsHide,
+				Sort = x.Sort,
 				CreateTime = x.CreateTime,
 				ModifyTime = x.ModifyTime
 			})
@@ -80,7 +81,7 @@ public sealed class MenuService : AbstractAppService, IMenuService
 			Id = Guid.CreateVersion7()
 		};
 
-		permission.UpdatePresentation(input.MenuIcon, input.Component, input.IsLink, input.KeepAlive, input.IsHide);
+		permission.UpdatePresentation(input.MenuIcon, input.Component, input.IsLink, input.KeepAlive, input.IsHide, input.Sort);
 
 		_dbContext.Permissions.Add(permission);
 		await _dbContext.SaveChangesAsync();
@@ -98,7 +99,7 @@ public sealed class MenuService : AbstractAppService, IMenuService
 		await ValidateParentAsync(input.ParentId, id);
 
 		permission.UpdateBasicInfo(input.ParentId, code, name, input.Type, NormalizePath(input.Type, input.Path));
-		permission.UpdatePresentation(input.MenuIcon, input.Component, input.IsLink, input.KeepAlive, input.IsHide);
+		permission.UpdatePresentation(input.MenuIcon, input.Component, input.IsLink, input.KeepAlive, input.IsHide, input.Sort);
 
 		await _dbContext.SaveChangesAsync();
 	}
@@ -192,6 +193,7 @@ public sealed class MenuService : AbstractAppService, IMenuService
 		return await _dbContext.Permissions
 			.AsNoTracking()
 			.OrderBy(x => x.Type)
+			.ThenBy(x => x.Sort)
 			.ThenBy(x => x.CreateTime)
 			.Select(x => new MenuTreeNodeDto
 			{
@@ -205,7 +207,8 @@ public sealed class MenuService : AbstractAppService, IMenuService
 				Component = x.Component,
 				IsLink = x.IsLink,
 				KeepAlive = x.KeepAlive,
-				IsHide = x.IsHide
+				IsHide = x.IsHide,
+				Sort = x.Sort
 			})
 			.ToListAsync();
 	}
@@ -267,7 +270,8 @@ public sealed class MenuService : AbstractAppService, IMenuService
 			Component = node.Component,
 			IsLink = node.IsLink,
 			KeepAlive = node.KeepAlive,
-			IsHide = node.IsHide
+			IsHide = node.IsHide,
+			Sort = node.Sort
 		};
 	}
 }

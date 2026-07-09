@@ -123,6 +123,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/PaymentsView.vue'),
         meta: { title: '支付记录', permission: PermissionCode.PaymentRecordQuery },
       },
+      {
+        path: 'payment/order-pay',
+        name: 'payment-order-pay',
+        component: () => import('@/views/admin/OrderPaymentView.vue'),
+        meta: { title: '订单支付', permission: PermissionCode.PaymentOrderPay },
+      },
     ],
   },
 ]

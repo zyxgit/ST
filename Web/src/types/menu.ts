@@ -10,6 +10,7 @@ export interface MenuTreeNode {
   isLink: boolean
   keepAlive: boolean
   isHide: boolean
+  sort: number
   children: MenuTreeNode[]
 }
 
@@ -29,6 +30,7 @@ export interface MenuCommand {
   isLink: boolean
   keepAlive: boolean
   isHide: boolean
+  sort: number
 }
 
 export enum PermissionType {

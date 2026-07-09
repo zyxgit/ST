@@ -1,6 +1,7 @@
 import {
   AppsOutline,
   BookOutline,
+  CardOutline,
   DocumentTextOutline,
   FlashOutline,
   FolderOpenOutline,
@@ -19,6 +20,7 @@ import type { Component } from 'vue'
 export const menuIconMap: Record<string, Component> = {
   'apps-outline': AppsOutline,
   'book-outline': BookOutline,
+  'card-outline': CardOutline,
   'document-text-outline': DocumentTextOutline,
   'flash-outline': FlashOutline,
   'folder-open-outline': FolderOpenOutline,
@@ -48,6 +50,7 @@ export const menuIconOptions = [
   { label: '书籍', value: 'book-outline' },
   { label: '钥匙', value: 'key-outline' },
   { label: '闪电', value: 'flash-outline' },
+  { label: '卡片', value: 'card-outline' },
 ]
 
 export function resolveMenuIcon(iconName?: string | null) {

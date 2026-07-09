@@ -102,8 +102,6 @@ public class OrderService : IOrderService, ITransientDependency
 			throw;
 		}
 
-		var sw = System.Diagnostics.Stopwatch.StartNew();
-
 		// 生成订单号
 		var orderNo = GenerateOrderNo();
 
@@ -162,9 +160,7 @@ public class OrderService : IOrderService, ITransientDependency
 			throw;
 		}
 
-		sw.Stop();
 		OrderMetrics.OrderCreated.Add(1);
-		OrderMetrics.CreateDurationMs.Record(sw.Elapsed.TotalMilliseconds);
 
 		_logger.LogInformation(
 			"Order created. OrderId={OrderId} OrderNo={OrderNo} TotalAmount={TotalAmount}",

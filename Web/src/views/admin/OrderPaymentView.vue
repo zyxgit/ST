@@ -8,7 +8,6 @@ import {
   NDescriptionsItem,
   NDrawer,
   NDrawerContent,
-  NInput,
   NPagination,
   NSelect,
   NSpace,
@@ -19,7 +18,7 @@ import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import PageSection from '@/components/common/PageSection.vue'
 import ServiceUnavailableState from '@/components/common/ServiceUnavailableState.vue'
 import TableActions from '@/components/common/TableActions.vue'
-import { cancelOrder, getOrders } from '@/api/order'
+import { getOrders } from '@/api/order'
 import { mockFail, mockPay } from '@/api/payment'
 import { PermissionCode } from '@/constants/permissions'
 import { formatDateTime } from '@/lib/dayjs'
@@ -31,8 +30,7 @@ import { OrderStatusMap } from '@/types/order'
 const authStore = useAuthStore()
 const { message, dialog } = useDiscrete()
 
-const canQuery = computed(() => authStore.hasPermission(PermissionCode.OrderQuery))
-const canCancel = computed(() => authStore.hasPermission(PermissionCode.OrderCancel))
+const canQuery = computed(() => authStore.hasPermission(PermissionCode.PaymentRecordQuery))
 
 // ── 过期倒计时 ──────────────────────────────────────────────────────────────
 const TIMEOUT_MINUTES = 5
@@ -58,8 +56,7 @@ const items = ref<OrderDto[]>([])
 const totalCount = ref(0)
 
 const query = reactive({
-  orderNo: '',
-  status: null as number | null,
+  status: null as number | null, // 默认显示全部，Pending(0) 和 InventoryFrozen(1) 都可支付
   pageIndex: 1,
   pageSize: 10,
 })
@@ -117,12 +114,9 @@ const columns: DataTableColumns<OrderDto> = [
         { key: 'detail', label: '详情', onClick: () => showDetail(row) },
       ]
 
-      if (row.status <= 1 && canCancel.value) {
-        actions.push({ key: 'cancel', label: '取消', type: 'error', onClick: () => handleCancel(row) })
-      }
-      if (row.status === 1) {
-        actions.push({ key: 'pay', label: '支付', onClick: () => handleMockPay(row) })
-        actions.push({ key: 'fail', label: '支付失败', onClick: () => handleMockFail(row) })
+      if (row.status === 0 || row.status === 1) {
+        actions.push({ key: 'pay', label: '支付', onClick: () => handlePay(row) })
+        actions.push({ key: 'fail', label: '模拟失败', type: 'error', onClick: () => handleFail(row) })
       }
 
       return h(TableActions, { actions })
@@ -144,7 +138,6 @@ async function loadData() {
     const result = await getOrders({
       pageIndex: query.pageIndex,
       pageSize: query.pageSize,
-      orderNo: query.orderNo || undefined,
       status: query.status ?? undefined,
     })
     items.value = result.items
@@ -159,37 +152,27 @@ async function loadData() {
   }
 }
 
-function handleCancel(row: OrderDto) {
-  dialog.warning({
-    title: '确认取消',
-    content: `确定要取消订单「${row.orderNo}」吗？`,
-    positiveText: '取消订单',
+function handlePay(row: OrderDto) {
+  dialog.info({
+    title: '确认支付',
+    content: `确定要支付订单「${row.orderNo}」吗？金额：¥${row.totalAmount.toFixed(2)}`,
+    positiveText: '确认支付',
     negativeText: '返回',
     onPositiveClick: async () => {
       try {
-        await cancelOrder(row.id)
-        message.success('订单已取消')
+        await mockPay(row.id)
+        message.success('支付成功')
         await loadData()
       } catch {
-        message.error('取消失败')
+        message.error('支付失败')
       }
     },
   })
 }
 
-async function handleMockPay(row: OrderDto) {
-  try {
-    await mockPay(row.id)
-    message.success('模拟支付成功')
-    await loadData()
-  } catch {
-    message.error('操作失败')
-  }
-}
-
-async function handleMockFail(row: OrderDto) {
+function handleFail(row: OrderDto) {
   dialog.warning({
-    title: '确认模拟支付失败',
+    title: '模拟支付失败',
     content: `确定要模拟订单「${row.orderNo}」支付失败吗？`,
     positiveText: '确认',
     negativeText: '返回',
@@ -206,7 +189,6 @@ async function handleMockFail(row: OrderDto) {
 }
 
 function handleReset() {
-  query.orderNo = ''
   query.status = null
   query.pageIndex = 1
   loadData()
@@ -225,11 +207,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <page-section title="订单管理" description="查看订单列表，支持筛选状态、取消订单和模拟支付操作。">
+  <page-section title="订单支付" description="查看待支付订单，进行支付操作。">
     <template v-if="canQuery">
       <n-card class="page-card" :bordered="false">
         <n-space>
-          <n-input v-model:value="query.orderNo" clearable placeholder="订单号搜索" @keyup.enter="loadData" />
           <n-select
             v-model:value="query.status"
             clearable

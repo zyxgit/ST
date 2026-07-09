@@ -23,4 +23,6 @@ public sealed class UpdateMenuInputDto
 	public bool KeepAlive { get; set; }
 
 	public bool IsHide { get; set; }
+
+	public int Sort { get; set; }
 }

@@ -103,6 +103,11 @@ namespace ST.MS.Identity.Infra.Migrations
                         .HasColumnName("path")
                         .HasComment("路由");
 
+                    b.Property<int>("Sort")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort")
+                        .HasComment("排序号（越小越靠前）");
+
                     b.Property<int>("Type")
                         .HasColumnType("integer")
                         .HasColumnName("type")

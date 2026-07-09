@@ -39,4 +39,5 @@ export const PermissionCode = {
   InventorySkuStock: 'inventory:sku:stock',
 
   PaymentRecordQuery: 'payment:record:query',
+  PaymentOrderPay: 'payment:order:pay',
 } as const

@@ -26,5 +26,7 @@ public sealed class MenuTreeNodeDto
 
 	public bool IsHide { get; set; }
 
+	public int Sort { get; set; }
+
 	public List<MenuTreeNodeDto> Children { get; set; } = [];
 }
