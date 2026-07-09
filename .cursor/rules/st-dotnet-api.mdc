@@ -1,16 +1,12 @@
 ---
-description: ST 后端（Api）C# / .NET 规范
-globs: Api/**/*.cs
-alwaysApply: false
+globs: Api/src/**/*
 ---
 
-# Api 规则
+# ST .NET API Rules
 
-- 详读 `docs/ai/api/README.md`；修改前确认 `ST.Shared.WebApi` 管道与模块注册。
-- 控制器基类 `AbstractControllerBase`（`[Authorize]` 默认）；公开接口加 `[AllowAnonymous]`。
-- 分页：`ST.Shared.Application.Dtos.PagedRequestDto` / `PagedResultDto<T>`。
-- EF：`AddNpgsqlDbContextFromConfig<YourDbContext>()` 在 `InfraModule`；迁移在 `*.Infra` 项目生成。
-- 后台任务：`IBackgroundTaskScheduler`（`ST.Infra.Tasks`），见 `docs/ai/api/Hangfire.md`。
-- 网关与 YARP：下游地址 `DownstreamServices:*` + `ReverseProxy` 节；勿在业务库写死公网 URL。
+- Read `docs/backend/README.md` and relevant skills in `docs/skills/`.
+- Follow service layering: Api / Application / Domain / Infra.
+- Use shared startup, exception, auth, logging, EF, Redis, EventBus, and ReliableMessaging patterns already in the repository.
+- For backend changes, prefer `dotnet build Api/src/ST.slnx`.
 
-功能交付时同步文档：见 `docs/ai/common/DocumentationSync.md` 与 `docs/ai/api/AI-Rules.md`。
+- For new services read `docs/backend/service-template.md`; for new APIs read `docs/backend/api-routing.md` and verify downstream + Gateway paths to avoid 404/502.

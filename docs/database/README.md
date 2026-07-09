@@ -1,99 +1,69 @@
-# 数据与存储导航
+# 数据库与存储文档
 
-## 当前技术栈
+## 存储组件
 
-- **RDBMS**：PostgreSQL（EF Core Npgsql 提供方见 `ST.Infra.EntityFramework.Npgsql`）。
-- **缓存**：Redis（`ST.Infra.Redis`，与 `AddSharedWebApi` 体系配套）。
-- **ORM**：EF Core，各微服务 `*.Infra` 中定义 `DbContext` 与迁移。
-- **消息**：RabbitMQ（`ST.Infra.EventBus`），可靠消息表见 `ST.Infra.ReliableMessaging`。
-
-## 规范真源
-
-| 主题 | 文档 |
+| 组件 | 用途 |
 |------|------|
-| DbContext、迁移、CodeFirst | [`../ai/api/EFCore.md`](../ai/api/EFCore.md) |
-| PostgreSQL 连接与部署注意 | [`../ai/api/PostgreSQL.md`](../ai/api/PostgreSQL.md) |
-| 仓储与聚合访问 | [`../ai/api/Repository.md`](../ai/api/Repository.md) |
-| 缓存键、防击穿、与业务层边界 | [`../ai/common/Cache.md`](../ai/common/Cache.md) + [`../ai/api/Redis.md`](../ai/api/Redis.md) |
-| 多租户数据隔离 | [`../ai/common/MultiTenant.md`](../ai/common/MultiTenant.md) |
-| Outbox / Inbox 可靠消息表 | [`../ai/api/ReliableMessaging.md`](../ai/api/ReliableMessaging.md) |
+| PostgreSQL | 各微服务主数据库 |
+| EF Core | ORM、迁移、DbContext |
+| Redis | 缓存、限流、库存 Lua 预扣 |
+| RabbitMQ | 集成事件与异步消息 |
+| Outbox/Inbox | 可靠消息状态与幂等消费 |
 
-## 配置入口
+## 数据库边界
 
-- 连接解析：`Database:Provider`、`Database:ConnectionString`（及历史键名兼容）由共享配置与各服务 `appsettings` 提供；生产用环境变量覆盖。
+- 每个微服务拥有自己的 DbContext 和迁移。
+- 服务间不得直接读写对方数据库表。
+- 跨服务一致性使用集成事件、Outbox/Inbox、Saga、补偿事务。
+- 业务表新增字段必须同步实体、配置、迁移、文档。
 
-## 可靠消息表（Outbox / Inbox）
+## 主要业务数据
 
-用于保证跨服务消息的最终一致性。表结构详见 [`../ai/api/ReliableMessaging.md`](../ai/api/ReliableMessaging.md)。
+| 服务 | 典型表 | 说明 |
+|------|--------|------|
+| Identity | users、roles、menus、tenants、tenant_users、tenant_quotas | 用户权限与租户 |
+| OperationLog | operation_logs、dead_letters | 操作日志与死信 |
+| FileUpload | files、multipart upload 相关表 | 文件元数据与分片上传 |
+| Order | orders、order_items、saga_instances、saga_steps | 订单与 Saga 状态 |
+| Inventory | skus、inventory_freeze_records | SKU 与冻结记录 |
+| Payment | payments | 模拟支付记录 |
+| ReliableMessaging | outbox_messages、inbox_messages | 可靠发布与幂等消费 |
 
-- `outbox_messages`：业务服务将集成事件写入此表，与业务数据在同一事务中提交。
-- `inbox_messages`：消费端基于 `MessageId + Consumer` 做幂等去重。
+## Outbox / Inbox 规则
 
-基础设施项目：`Api/src/Infrastructures/ST.Infra.ReliableMessaging/`。
+`outbox_messages` 至少表达：消息 ID、聚合 ID、事件类型、payload、状态、重试次数、下一次重试时间、发生时间、发送时间、错误信息。
 
-## Order 服务表
+`inbox_messages` 至少表达：消息 ID、消费者、事件类型、处理时间。
 
-订单服务的数据库表。表结构详见 [`../ai/api/Order.md`](../ai/api/Order.md)。
+约束：
 
-- `orders`：订单主表（订单号、用户 ID、总金额、状态、Saga 实例 ID）。
-- `order_items`：订单项表（SKU ID、商品名称、数量、单价）。
-- `saga_instances`：Saga 实例表（业务 ID、Saga 类型、当前步骤、状态）。
-- `saga_steps`：Saga 步骤表（步骤名、状态、请求/响应 JSON、补偿事件类型）。
+- Outbox 与业务数据同事务提交。
+- Publisher 只投递可重试消息，并更新状态。
+- Inbox 使用 `MessageId + Consumer` 唯一约束防重复消费。
 
-数据库名：`st_order`。服务项目：`Api/src/Microservices/Order/`。
+## Redis 键空间
 
-## Inventory 服务表
+建议键空间：
 
-库存服务的数据库表。表结构详见 [`../ai/api/Inventory.md`](../ai/api/Inventory.md)。
+| 键 | 用途 |
+|----|------|
+| `inventory:sku:{skuId}:available` | 可用库存 |
+| `inventory:sku:{skuId}:frozen` | 冻结库存 |
+| `inventory:sku:{skuId}:sold` | 已售库存 |
+| `gateway:rate-limit:{partition}:{path}` | 网关限流 |
+| `identity:permissions:{userId}` | 用户权限缓存 |
+| `tenant:{tenantId}:quota` | 租户配额缓存 |
 
-- `skus`：SKU 库存主表（SKU ID、商品名称、可用库存、冻结库存、已售库存、乐观锁版本号）。
-- `inventory_freeze_records`：库存冻结记录表（订单 ID、SKU ID、冻结数量、状态）。
+## 迁移规则
 
-数据库名：`st_inventory`。服务项目：`Api/src/Microservices/Inventory/`。
+- 新增/修改实体后必须生成 EF 迁移。
+- 禁止手写生产 DDL 后不回写迁移。
+- 迁移名称应描述业务目的，如 `AddTenantQuota`、`AddOrderSagaTables`。
+- 迁移执行方式必须在发布说明或文档中说明。
 
-## Payment 服务表
+## 高并发数据规则
 
-支付服务的数据库表。表结构详见 [`../ai/api/Payment.md`](../ai/api/Payment.md)。
-
-- `payments`：支付记录表（订单 ID、支付金额、状态、失败原因）。
-
-数据库名：`st_payment`。服务项目：`Api/src/Microservices/Payment/`。
-
-## AI 注意
-
-- 新增表/字段必须走 **EF 迁移** 与 Code Review，禁止仅改实体不生成迁移（见 `EFCore.md` 禁止项）。
-
-## Identity 服务表变更
-
-User 实体新增字段（需执行迁移）：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `LockReason` | `string?` | 锁定原因（`"login_fail_exceeded"`、`"admin_disable"`） |
-| `LockedAtUtc` | `DateTime?` | 锁定时间 |
-
-迁移命令：`dotnet ef migrations add AddLockReasonFields --project Api/src/Microservices/Identity/ST.MS.Identity.Infra --startup-project Api/src/Microservices/Identity/ST.MS.Identity.Api`
-
-## Identity 租户表
-
-新增多租户支持相关表。表结构详见 [`../ai/common/MultiTenant.md`](../ai/common/MultiTenant.md)。
-
-- `tenants`：租户主表（编码、名称、状态、套餐 ID、过期时间）。
-- `tenant_users`：租户用户关联表（租户 ID、用户 ID、租户内角色）。复合主键 `(tenant_id, user_id)`。
-- `tenant_quotas`：租户配额表（用户上限、存储上限、API 调用上限、文件大小上限、订单上限）。`tenant_id` 唯一索引。
-
-数据库名：`st_identity`。服务项目：`Api/src/Microservices/Identity/`。
-
-## 业务表租户字段
-
-以下业务表新增 `tenant_id` 字段（需执行迁移）：
-
-| 表 | 服务 | 说明 |
-|----|------|------|
-| `orders` | Order | 订单 |
-| `skus` | Inventory | SKU 库存 |
-| `payments` | Payment | 支付记录 |
-| `files` | FileUpload | 文件记录 |
-| `operation_logs` | OperationLog | 操作日志 |
-
-EF Core 全局查询过滤器自动按 `tenant_id` 过滤，无需手动添加 WHERE 条件。
+- 库存扣减必须使用 Redis Lua、数据库条件更新或乐观锁。
+- 不允许先查询库存再普通更新库存。
+- 订单、支付、库存状态流转必须幂等。
+- 唯一业务键必须建唯一索引或在应用层加幂等约束。

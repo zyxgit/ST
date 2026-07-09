@@ -1,51 +1,110 @@
-# ST AI 工程化规范中心
+# AI Agent 工作规范
 
-本目录为 **ST Monorepo**（`Api/` .NET + `Web/` Vue）的统一 AI 与协作规范入口，适用于 Codex、Claude、Cursor、Copilot 及各类 Agent。
+本文是 ST 仓库中 AI Agent 的唯一入口。任何 AI 在修改代码或文档前，必须先阅读 `AGENTS.md` 和本文，再按任务读取 `docs/skills/` 与相关专题文档。
 
-## 文档地图
+## 最高原则
 
-| 分区 | 路径 | 用途 |
-|------|------|------|
-| 通用 | [`common/`](./common/) | Git、Monorepo、命名、日志、缓存、多租户预留、Prompt、可观测性、**[功能迭代文档同步](./common/DocumentationSync.md)**、**[AI Agent 路线图执行指南](./common/AgentExecutionGuide.md)**、**[模板项目演进路线图](./common/DevelopmentRoadmap.md)** |
-| 后端 | [`api/`](./api/) | DDD 分层、EF Core、JWT、网关、Hangfire、DTO/异常/Result |
-| 前端 | [`web/`](./web/) | Vue3、Pinia、路由权限、请求封装、组件与样式 |
-| AI 规则 | [`AI-RULES.md`](./AI-RULES.md) | **AI 生成强制规则统一入口**，聚合各域规则 |
-| 文档巡检 | [`DOCUMENTATION-AUDIT.md`](./DOCUMENTATION-AUDIT.md) | 当前仓库事实、文档缺口、后续同步清单 |
-| Agent Skill | [`skills/`](./skills/) | **ST AI Skill Center**：高密度 `*.skill.md`（后端/前端/架构等） |
+1. **先分析需求是否合理，再执行。**
+2. **不确定就提问，不脑补。**
+3. **任务必须拆小，不能一次性大改。**
+4. **代码和文档同一变更集同步。**
+5. **源码事实优先，文档冲突必须修正文档。**
+6. **禁止提交密钥和本地私有配置。**
 
-## 项目事实摘要（与仓库一致）
+## 需求合理性审查
 
-- **后端**：解决方案入口 `Api/src/ST.slnx`；Aspire `Api/src/Aspire/ST.Aspire.AppHost`；网关 `Api/src/Microservices/Gateway/ST.Gateway`（YARP + `ReverseProxy` 配置）。
-- **微服务**：Identity（用户/角色/权限）、OperationLog（操作日志）、Test（示例）、**FileUpload**（文件上传与管理，本地存储 + IFileStorageService 可扩展接口）。
-- **网关路由**：`/api/identity/*` → Identity、`/api/operationlog/*` → OperationLog、`/api/test/*` → Test、**`/api/files/*` → FileUpload**；Docs 入口 `/docs/服务名/scalar/v1`。
-- **共享启动**：`AddSharedWebApi` / `UseSharedWebApi`（`ST.Shared.WebApi`），全局异常 `GlobalExceptionMiddleware`，JWT + `perm:` 权限策略。
-- **前端**：`Web/` Vite + Vue3 + TypeScript；Axios 封装 `Web/src/lib/request.ts`；Pinia `Web/src/stores/auth.ts`；路由守卫与菜单树 bootstrap。
+AI 接到用户需求后，必须先进行审查：
 
-## 阅读顺序（新人 / AI）
+1. 复述用户目标。
+2. 判断需求是否合理：
+   - 是否范围过大。
+   - 是否违反现有架构或服务边界。
+   - 是否存在安全、数据一致性、性能或维护风险。
+   - 是否与源码事实冲突。
+   - 是否缺少必要验收条件。
+3. 如果合理，输出实施计划、修改范围、验证方式。
+4. 如果不合理，必须先说明不合理原因，并给出推荐优化方案。
+5. 如果用户二次确认仍要按不合理方案执行，AI 才能继续，并在最终说明中记录风险。
+6. 如果存在不确定问题，必须先问用户；禁止自行猜测路径、类名、配置键、接口或业务规则。
 
-1. [`common/Monorepo.md`](./common/Monorepo.md) → [`common/Git.md`](./common/Git.md)
-2. [`common/Architecture.md`](./common/Architecture.md) + [`api/README.md`](./api/README.md) 或 [`web/README.md`](./web/README.md)
-3. 按任务深入：EF/Redis/Auth 等子文档；Agent 优先加载 [`skills/README.md`](./skills/README.md)
+## 标准执行流程
 
-## 阅读入口
+```text
+1. 阅读 AGENTS.md 与 docs/ai/README.md
+2. 按任务选择 docs/skills/*.md
+3. 用 rg / find / 源码确认事实
+4. 如果是新服务，先阅读 docs/backend/service-template.md；如果是新接口，先阅读 docs/backend/api-routing.md
+5. 做需求合理性审查
+6. 给出小范围计划
+7. 修改代码/文档
+8. 对新接口执行下游直连 + Gateway 外部路径双验证，避免 404/502
+9. 运行最窄有意义检查
+10. 更新文档和状态
+11. 总结变更、测试、风险
+```
 
-AI Agent **首先阅读** [`AI-RULES.md`](./AI-RULES.md)（通用规则 + 各域导航），再核对 [`DOCUMENTATION-AUDIT.md`](./DOCUMENTATION-AUDIT.md) 的项目事实与文档缺口，最后按域阅读 `api/AI-Rules.md` 或 `web/AI-Rules.md`。
+## 任务拆分规则
 
-## 与根目录规范联动
+不要接受“完成整个路线图阶段”这类大任务。必须拆为：
 
-- **Claude Code**：根目录 [`.claude/CLAUDE.md`](../../.claude/CLAUDE.md)
-- **GitHub Copilot**：[`.github/copilot-instructions.md`](../../.github/copilot-instructions.md)
-- **Cursor**：[`.cursor/rules/`](../../.cursor/rules/)
+- 一个清晰目标。
+- 一个明确写范围。
+- 一个明确禁止范围。
+- 一组验收标准。
+- 一个或多个验证命令。
 
-## AI 使用约束（总览）
+示例任务模板：
 
-- 以本目录为真源；修改业务代码前须对照 `api/` 与 `web/` 中的**禁止事项**与**真实类型/文件路径**。
-- **功能新增/变更须同步更新 Markdown**（同一变更集内）：见 [`common/DocumentationSync.md`](./common/DocumentationSync.md)，并将根目录 `README.md` 与 [`DOCUMENTATION-AUDIT.md`](./DOCUMENTATION-AUDIT.md) 纳入检查。
-- 不引入 Submodule；不移动 `Api` / `Web` 顶层结构；不提交密钥与本地环境文件（见 `common/Git.md`）。
+```text
+目标：实现 [一个小能力]
+允许修改：
+- [目录/文件]
+禁止修改：
+- [暂不触碰的范围]
+验收标准：
+- [可运行/可构建/可验证]
+文档同步：
+- [需要更新的 docs 路径]
+```
 
-## 相关导航
+## 文档同步规则
 
-- 人类可读的架构速览：[`../architecture/README.md`](../architecture/README.md)
-- 部署与运行：[`../deploy/README.md`](../deploy/README.md)
-- 数据与存储：[`../database/README.md`](../database/README.md)
-- 对外 API 说明入口：[`../api/README.md`](../api/README.md)
+功能新增或变更时至少检查：
+
+- `README.md`
+- `docs/README.md`
+- `docs/architecture/README.md`
+- `docs/backend/README.md` 或 `docs/frontend/README.md`
+- `docs/database/README.md`
+- `docs/devops/README.md`
+- `docs/status/README.md`
+- `docs/skills/README.md` 与相关 skill
+
+## 文档重构/删除规则
+
+- 删除旧文档前必须先阅读并提取有效信息。
+- 合并后再删除旧文档，不保留重复真源。
+- 删除后使用 `rg` 查找旧路径引用。
+- 新文档必须有入口索引，避免孤立文件。
+
+## 常用检查
+
+| 场景 | 命令 |
+|------|------|
+| 文档-only | `git diff --check` |
+| 后端 | `dotnet build Api/src/ST.slnx` |
+| 新服务 | `curl -i http://localhost:<service-port>/health` + `curl -i http://localhost:<gateway-port>/<external-api>` |
+| 新接口 | 下游直连路径 + Gateway 外部路径各请求一次 |
+| 前端 | `cd Web && pnpm build` |
+| 路径/引用核查 | `rg "旧路径或旧标题"` |
+
+## 禁止事项
+
+- 禁止把不合理需求直接实现而不提示风险。
+- 禁止不确定时自行脑补。
+- 禁止修改与任务无关的大量代码。
+- 禁止提交真实密钥、生产连接串、JWT SigningKey。
+- 禁止仅新增空文档或标题文档。
+- 禁止让文档与代码中的路径、服务名、路由、配置键不一致。
+- 禁止新服务未接入 Gateway/Aspire/Docker Compose 就标记完成。
+- 禁止新接口未验证下游直连路径和 Gateway 外部路径就标记完成。
