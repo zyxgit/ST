@@ -9,7 +9,7 @@ namespace ST.MS.OperationLog.Api.Controllers;
 /// <summary>
 /// 死信消息管理
 /// </summary>
-[Route("api/operationlog/dead-letters")]
+[Route("api/dead-letters")]
 public sealed class DeadLetterController : AbstractControllerBase
 {
 	private readonly IDeadLetterQueryService _queryService;

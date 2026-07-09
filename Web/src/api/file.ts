@@ -1,4 +1,6 @@
 import request from '@/lib/request'
+import type { PagedResult } from '@/types/common'
+import type { FileQuery, FileListItem } from '@/types/file'
 
 export interface FileUploadResult {
   id: string
@@ -23,4 +25,14 @@ export function uploadFile(file: File, accessLevel = 0) {
   return request.post<FileUploadResult>('/files/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
+}
+
+/** 文件列表分页查询 */
+export function getFiles(params: FileQuery) {
+  return request.get<PagedResult<FileListItem>>('/files', { params })
+}
+
+/** 删除文件（仅上传者可删除） */
+export function deleteFile(id: string) {
+  return request.delete<void>(`/files/${id}`)
 }

@@ -180,6 +180,35 @@ return actual";
 		);
 	}
 
+	/// <summary>
+	/// Lua 脚本：只读检查可用库存是否足够（不修改任何键）。
+	///
+	/// KEYS[1] = available 键
+	/// ARGV[1] = quantity
+	/// </summary>
+	private const string CheckAvailableScript = @"
+local available = tonumber(redis.call('GET', KEYS[1]) or '0')
+local quantity = tonumber(ARGV[1])
+if available >= quantity then
+    return 1
+else
+    return 0
+end";
+
+	/// <inheritdoc />
+	public async Task<bool> CheckAvailableAsync(Guid skuId, int quantity, CancellationToken ct = default)
+	{
+		var db = _redisClient.GetDatabase();
+		var availableKey = AvailableKey(skuId);
+
+		var result = (long)await db.ScriptEvaluateAsync(
+			CheckAvailableScript,
+			new[] { new RedisKey(availableKey) },
+			new RedisValue[] { quantity });
+
+		return result == 1;
+	}
+
 	private static string AvailableKey(Guid skuId) => $"{TenantPrefix}{KeyPrefix}:{skuId}:available";
 	private static string FrozenKey(Guid skuId) => $"{TenantPrefix}{KeyPrefix}:{skuId}:frozen";
 	private static string SoldKey(Guid skuId) => $"{TenantPrefix}{KeyPrefix}:{skuId}:sold";

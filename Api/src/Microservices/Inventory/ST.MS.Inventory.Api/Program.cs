@@ -37,6 +37,9 @@ try
 	// 注册 Redis 库存预扣服务
 	builder.Services.AddInventoryRedis();
 
+	// 注册启动时 DB→Redis 库存同步服务（确保种子数据在 Redis 中可用）
+	builder.Services.AddHostedService<InventoryRedisSyncService>();
+
 	builder.Services.AddOpenApi(options =>
 	{
 		options.AddDocumentTransformer<BearerAuthDocumentTransformer>();

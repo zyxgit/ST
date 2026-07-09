@@ -10,6 +10,7 @@ namespace ST.MS.Inventory.Api.Controllers;
 /// 库存管理接口。
 /// </summary>
 [AllowAnonymous]
+[Route("api/inventory/skus")]
 public class InventoryController : AbstractControllerBase
 {
 	private readonly IInventoryService _inventoryService;
@@ -22,9 +23,19 @@ public class InventoryController : AbstractControllerBase
 	}
 
 	/// <summary>
+	/// SKU 列表
+	/// </summary>
+	[HttpGet]
+	public async Task<ActionResult<List<SkuDto>>> GetSkus(CancellationToken ct)
+	{
+		var skus = await _inventoryService.GetSkusAsync(ct);
+		return Ok(skus);
+	}
+
+	/// <summary>
 	/// 创建 SKU
 	/// </summary>
-	[HttpPost("api/inventory/skus")]
+	[HttpPost]
 	public async Task<ActionResult<SkuDto>> CreateSku([FromBody] CreateSkuDto input, CancellationToken ct)
 	{
 		var sku = await _inventoryService.CreateSkuAsync(input, ct);
@@ -34,7 +45,7 @@ public class InventoryController : AbstractControllerBase
 	/// <summary>
 	/// 增加库存
 	/// </summary>
-	[HttpPost("api/inventory/skus/{skuId:guid}/stock/increase")]
+	[HttpPost("{skuId:guid}/stock/increase")]
 	public async Task<ActionResult<SkuDto>> IncreaseStock(Guid skuId, [FromQuery] int quantity, CancellationToken ct)
 	{
 		if (quantity <= 0)
@@ -49,7 +60,7 @@ public class InventoryController : AbstractControllerBase
 	/// <summary>
 	/// 查询库存
 	/// </summary>
-	[HttpGet("api/inventory/skus/{skuId:guid}/stock")]
+	[HttpGet("{skuId:guid}/stock")]
 	public async Task<ActionResult<SkuDto>> GetStock(Guid skuId, CancellationToken ct)
 	{
 		var sku = await _inventoryService.GetSkuAsync(skuId, ct);

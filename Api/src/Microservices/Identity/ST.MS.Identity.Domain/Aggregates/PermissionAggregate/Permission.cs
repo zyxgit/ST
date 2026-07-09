@@ -73,6 +73,11 @@ public class Permission : AggregateRoot
 	public bool IsHide { get; private set; }
 
 	/// <summary>
+	/// 排序号（越小越靠前）
+	/// </summary>
+	public int Sort { get; private set; }
+
+	/// <summary>
 	/// 是否删除
 	/// </summary>
 	public bool IsDeleted { get; private set; }
@@ -100,13 +105,15 @@ public class Permission : AggregateRoot
 		string? component,
 		bool isLink,
 		bool keepAlive,
-		bool isHide)
+		bool isHide,
+		int sort = 0)
 	{
 		MenuIcon = string.IsNullOrWhiteSpace(menuIcon) ? null : menuIcon.Trim();
 		Component = string.IsNullOrWhiteSpace(component) ? null : component.Trim();
 		IsLink = isLink;
 		KeepAlive = keepAlive;
 		IsHide = isHide;
+		Sort = sort;
 	}
 
 	public void SoftDelete() => IsDeleted = true;

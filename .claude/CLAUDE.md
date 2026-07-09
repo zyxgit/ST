@@ -20,5 +20,4 @@
 - Backend: `dotnet build Api/src/ST.slnx`
 - Frontend: `cd Web && pnpm build`
 - Documentation-only: `git diff --check`
-
 - For new services read `docs/backend/service-template.md`; for new APIs read `docs/backend/api-routing.md` and verify downstream + Gateway paths to avoid 404/502.

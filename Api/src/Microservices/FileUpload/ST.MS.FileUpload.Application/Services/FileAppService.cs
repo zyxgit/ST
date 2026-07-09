@@ -22,18 +22,21 @@ public sealed class FileAppService : AbstractAppService, IFileAppService
     private readonly FileStorageOptions _options;
     private readonly ICurrentTenantAccessor _tenantAccessor;
     private readonly ITenantQuotaService? _quotaService;
+    private readonly ISignedUrlService _signedUrlService;
 
     public FileAppService(
         FileUploadDbContext dbContext,
         IFileStorageService storageService,
         IOptions<FileStorageOptions> options,
         ICurrentTenantAccessor tenantAccessor,
+        ISignedUrlService signedUrlService,
         ITenantQuotaService? quotaService = null)
     {
         _dbContext = dbContext;
         _storageService = storageService;
         _options = options.Value;
         _tenantAccessor = tenantAccessor;
+        _signedUrlService = signedUrlService;
         _quotaService = quotaService;
     }
 
@@ -45,27 +48,44 @@ public sealed class FileAppService : AbstractAppService, IFileAppService
         {
             await _quotaService.CheckFileSizeQuotaAsync(_tenantAccessor.TenantId.Value, fileLength);
         }
-        string filePath;
 
-        using var sha256 = SHA256.Create();
-        using (var cryptoStream = new CryptoStream(stream, sha256, CryptoStreamMode.Read))
+        // 1. 先计算 hash，用于秒传去重
+        string fileHash;
+        using (var sha256 = SHA256.Create())
         {
-            filePath = await _storageService.UploadAsync(cryptoStream, fileName, contentType);
+            var hashBytes = await sha256.ComputeHashAsync(stream);
+            fileHash = Convert.ToHexString(hashBytes);
         }
-        // cryptoStream Dispose 后 sha256.Hash 才可用
-        var fileHash = Convert.ToHexString(sha256.Hash!);
 
-        // 2. 创建数据库记录
+        // 2. 秒传检查：查找已有相同 hash + size 的文件，复用其存储路径
+        var existingFile = await _dbContext.Files
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.FileHash == fileHash && f.FileSize == fileLength);
+
+        string filePath;
+        if (existingFile is not null)
+        {
+            // 秒传：复用已有文件的存储路径，不重复上传
+            filePath = existingFile.FilePath;
+        }
+        else
+        {
+            // 正常上传：重置流位置后上传物理文件
+            stream.Position = 0;
+            filePath = await _storageService.UploadAsync(stream, fileName, contentType);
+        }
+
+        // 3. 创建数据库记录
         var extension = Path.GetExtension(fileName);
         var entity = new FileEntity(fileName, filePath, fileLength, contentType, extension, accessLevel, uploaderName, fileHash);
 
         _dbContext.Files.Add(entity);
         await _dbContext.SaveChangesAsync();
 
-        // 3. 返回下载 URL（不暴露存储路径）
+        // 4. 返回下载 URL（不暴露存储路径）
         var downloadUrl = accessLevel == FileAccessLevel.Public
             ? $"/api/files/{entity.Id}/public/download"
-            : $"/api/files/{entity.Id}/download";
+            : _signedUrlService.GenerateSignedUrl(entity.Id).Url;
 
         FileUploadMetrics.UploadCount.Add(1);
         FileUploadMetrics.FileSizeBytes.Record(fileLength);
@@ -81,16 +101,25 @@ public sealed class FileAppService : AbstractAppService, IFileAppService
         };
     }
 
-    public async Task DeleteAsync(Guid id, Guid userId)
+    public async Task DeleteAsync(Guid id, Guid userId, bool hasDeletePermission = false)
     {
         var entity = await LoadFileAsync(id);
 
-        if (entity.CreateBy != userId)
+        if (entity.CreateBy != userId && !hasDeletePermission)
             throw new BusinessException("无权删除此文件");
 
-        await _storageService.DeleteAsync(entity.FilePath);
+        // 检查是否有其他 FileEntity 引用同一个物理文件
+        var otherRefCount = await _dbContext.Files
+            .CountAsync(f => f.FilePath == entity.FilePath && f.Id != entity.Id);
 
         _dbContext.Files.Remove(entity);
+
+        // 只有最后一个引用被删除时，才删除物理文件
+        if (otherRefCount == 0)
+        {
+            await _storageService.DeleteAsync(entity.FilePath);
+        }
+
         await _dbContext.SaveChangesAsync();
     }
 
@@ -120,26 +149,13 @@ public sealed class FileAppService : AbstractAppService, IFileAppService
 
         var totalCount = await query.LongCountAsync();
 
-        var items = await query
+        var entities = await query
             .OrderByDescending(f => f.CreateTime)
             .Skip(skip)
             .Take(pageSize)
-            .Select(f => new FileInfoDto
-            {
-                Id = f.Id,
-                FileName = f.FileName,
-                FilePath = f.FilePath,
-                FileSize = f.FileSize,
-                ContentType = f.ContentType,
-                Extension = f.Extension,
-                Url = f.AccessLevel == FileAccessLevel.Public
-                    ? $"/api/files/{f.Id}/public/download"
-                    : $"/api/files/{f.Id}/download",
-                CreateTime = f.CreateTime,
-                UploaderName = f.UploaderName,
-                AccessLevel = (int)f.AccessLevel
-            })
             .ToListAsync();
+
+        var items = entities.Select(MapToDto).ToList();
 
         return new PagedResultDto<FileInfoDto>
         {
@@ -216,11 +232,11 @@ public sealed class FileAppService : AbstractAppService, IFileAppService
                ?? throw new BusinessException("文件不存在");
     }
 
-    private static FileInfoDto MapToDto(FileEntity entity)
+    private FileInfoDto MapToDto(FileEntity entity)
     {
         var downloadUrl = entity.AccessLevel == FileAccessLevel.Public
             ? $"/api/files/{entity.Id}/public/download"
-            : $"/api/files/{entity.Id}/download";
+            : _signedUrlService.GenerateSignedUrl(entity.Id).Url;
 
         return new FileInfoDto
         {

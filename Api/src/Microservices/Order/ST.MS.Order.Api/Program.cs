@@ -5,6 +5,7 @@ using ST.Infra.EventBus.OperationLog;
 using ST.Infra.EventBus.RabbitMQ.Extensions;
 using ST.Infra.IntegrationEvents.Inventory;
 using ST.Infra.IntegrationEvents.Payment;
+using ST.Infra.Redis.Extensions;
 using ST.Infra.ReliableMessaging.Extensions;
 using ST.MS.Order.Application;
 using ST.MS.Order.Application.Services;
@@ -37,6 +38,9 @@ try
 
 	// 注册 RabbitMQ EventBus（用于消费 Inventory 集成事件）
 	builder.Services.AddRabbitMqEventBus(builder.Configuration);
+
+	// 注册 Redis 库存预扣服务（用于下单前同步库存检查）
+	builder.Services.AddInventoryRedis();
 
 	builder.Services.AddOpenApi(options =>
 	{

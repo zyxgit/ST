@@ -34,4 +34,11 @@ public interface IInventoryRedisService
 	/// 键不存在时返回 null。
 	/// </summary>
 	Task<(int Available, int Frozen, int Sold)?> GetStockAsync(Guid skuId, CancellationToken ct = default);
+
+	/// <summary>
+	/// 检查可用库存是否足够（只读，不扣减）。
+	/// 用于下单前的同步预检查，避免超卖。
+	/// Redis 键不存在时视为库存为 0。
+	/// </summary>
+	Task<bool> CheckAvailableAsync(Guid skuId, int quantity, CancellationToken ct = default);
 }

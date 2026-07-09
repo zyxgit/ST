@@ -1,4 +1,5 @@
 using ST.MS.Order.Application.Dto;
+using ST.Shared.Application.Dtos;
 
 namespace ST.MS.Order.Application.Services;
 
@@ -16,6 +17,11 @@ public interface IOrderService
 	/// 查询订单详情。
 	/// </summary>
 	Task<OrderDto?> GetOrderAsync(Guid orderId, CancellationToken ct = default);
+
+	/// <summary>
+	/// 订单列表分页查询。
+	/// </summary>
+	Task<PagedResultDto<OrderDto>> GetOrdersAsync(OrderQueryDto query, CancellationToken ct = default);
 
 	/// <summary>
 	/// 取消订单（含 Outbox 取消事件写入，同一事务）。

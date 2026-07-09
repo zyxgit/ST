@@ -35,4 +35,9 @@ public interface IOutboxStore
 	/// 标记消息发送失败，记录错误信息并设置下次重试时间。
 	/// </summary>
 	Task MarkAsFailedAsync(Guid messageId, string error, DateTime nextRetryAtUtc, CancellationToken ct = default);
+
+	/// <summary>
+	/// 持久化状态变更（标记 Sent / Failed 后需调用）。
+	/// </summary>
+	Task SaveChangesAsync(CancellationToken ct = default);
 }

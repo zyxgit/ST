@@ -1,6 +1,9 @@
 using NLog;
 using Scalar.AspNetCore;
+using ST.Infra.EventBus.OperationLog;
 using ST.MS.OperationLog.Application;
+using ST.MS.OperationLog.Application.IServices;
+using ST.MS.OperationLog.Application.Services;
 using ST.MS.OperationLog.Infra;
 using ST.Shared.WebApi.Extensions;
 using ST.Shared.WebApi.Extensions.OpenApi;
@@ -17,6 +20,15 @@ try
 
 	builder.AddServiceDefaults();
 	builder.AddSharedWebApi(modules);
+
+	// 死信重放：注册 RabbitMQ 配置和重放服务
+	builder.Services.AddSingleton(sp =>
+	{
+		var opt = new RabbitMqOperationLogOptions();
+		builder.Configuration.GetSection("RabbitMQ:OperationLog").Bind(opt);
+		return opt;
+	});
+	builder.Services.AddScoped<IDeadLetterService, DeadLetterReplayService>();
 
 	builder.Services.AddOutputCache(options =>
 	{

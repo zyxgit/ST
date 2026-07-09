@@ -7,6 +7,13 @@
     <UserSecretsId>ST.MS.Payment.Infra</UserSecretsId>
   </PropertyGroup>
 
+  <!-- DesignTime DbContext Factory 需要读取连接字符串 -->
+  <ItemGroup>
+    <Content Include="appsettings*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
       <PrivateAssets>all</PrivateAssets>

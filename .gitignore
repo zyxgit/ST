@@ -21,6 +21,10 @@ deploy/.env
 # FileUpload 微服务上传目录（运行时生成，不进仓库）
 Api/src/Microservices/FileUpload/ST.MS.FileUpload.Api/uploads/
 
+# NLog 运行时日志目录（所有微服务）
+Api/src/Microservices/*/logs/
+Api/src/Microservices/*/bin/
+
 # AI 编辑器本地配置（用户私有，不进仓库）
 .claude/settings.local.json
 

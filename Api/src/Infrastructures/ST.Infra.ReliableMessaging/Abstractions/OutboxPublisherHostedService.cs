@@ -97,7 +97,7 @@ public sealed class OutboxPublisherHostedService : BackgroundService
 			}
 
 			// 每条消息处理后 SaveChanges，避免一条失败影响整批
-			await SaveChangesAsync(scope, ct).ConfigureAwait(false);
+			await store.SaveChangesAsync(ct).ConfigureAwait(false);
 		}
 	}
 
@@ -132,12 +132,5 @@ public sealed class OutboxPublisherHostedService : BackgroundService
 				"Outbox message publish failed, will retry. Id={MessageId} EventType={EventType} RetryCount={RetryCount} NextRetry={NextRetry}",
 				message.Id, message.EventType, newRetryCount, nextRetry);
 		}
-	}
-
-	private static async Task SaveChangesAsync(IServiceScope scope, CancellationToken ct)
-	{
-		// 通过 DbContext 直接 SaveChanges，因为 IOutboxStore 不含 SaveChanges
-		var dbContext = scope.ServiceProvider.GetRequiredService<DbContext.ReliableMessagingDbContext>();
-		await dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
 	}
 }

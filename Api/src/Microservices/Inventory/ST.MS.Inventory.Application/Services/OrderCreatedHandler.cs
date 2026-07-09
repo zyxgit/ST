@@ -58,10 +58,10 @@ public class OrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrat
 			ReceivedAtUtc = DateTime.UtcNow
 		});
 
-		// 冻结库存
+		// 冻结库存（如果 Order Service 已完成 Redis 预扣，则跳过 Redis 层）
 		var sw = System.Diagnostics.Stopwatch.StartNew();
 		var success = await _inventoryService.FreezeInventoryAsync(
-			@event.OrderId, @event.Items, cancellationToken);
+			@event.OrderId, @event.Items, skipRedisFreeze: @event.RedisPreFrozen, cancellationToken);
 		sw.Stop();
 		InventoryMetrics.FreezeDurationMs.Record(sw.Elapsed.TotalMilliseconds);
 

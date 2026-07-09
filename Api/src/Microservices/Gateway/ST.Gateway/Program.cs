@@ -106,34 +106,6 @@ app.MapHealthChecks("/alive", new HealthCheckOptions
     Predicate = r => r.Tags.Contains("live")
 });
 
-// ── 性能诊断：管线最外层 ─────────────────────────────────────────────────────
-app.Use(async (context, next) =>
-{
-    var totalSw = System.Diagnostics.Stopwatch.StartNew();
-    var stepSw = new System.Diagnostics.Stopwatch();
-    var steps = new System.Collections.Generic.List<string>();
-
-    // ForwardedHeaders
-    stepSw.Restart();
-    if (app.Configuration.GetValue("ForwardedHeaders:Enabled", true))
-    {
-        // ForwardedHeaders 已在下面注册，这里只计时
-    }
-    stepSw.Stop();
-
-    await next();
-
-    totalSw.Stop();
-    Console.WriteLine(
-        $"[GW-PERF] {context.Request.Method} {context.Request.Path} | " +
-        $"Total={totalSw.ElapsedMilliseconds}ms Status={context.Response.StatusCode}");
-
-    if (totalSw.ElapsedMilliseconds > 200)
-    {
-        Console.WriteLine($"[GW-SLOW] {context.Request.Method} {context.Request.Path} took {totalSw.ElapsedMilliseconds}ms!");
-    }
-});
-
 if (builder.Configuration.GetValue("ForwardedHeaders:Enabled", true))
 {
 	app.UseForwardedHeaders();
@@ -144,8 +116,6 @@ if (builder.Configuration.GetValue("ForwardedHeaders:Enabled", true))
 // 存入 HttpContext.Items 并写入响应头，YARP 转发时自动携带。
 app.Use(async (context, next) =>
 {
-	var sw = System.Diagnostics.Stopwatch.StartNew();
-
 	const string headerName = "X-Correlation-Id";
 
 	// 优先从请求头读取
@@ -173,8 +143,6 @@ app.Use(async (context, next) =>
 	context.Response.Headers[headerName] = correlationId;
 
 	await next();
-	sw.Stop();
-	Console.WriteLine($"[GW-PERF] CorrelationId: {sw.ElapsedMilliseconds}ms");
 });
 
 app.UseCors("st-default");
@@ -183,33 +151,12 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-// 诊断：静态文件耗时
-app.Use(async (context, next) =>
-{
-    var sw = System.Diagnostics.Stopwatch.StartNew();
-    await next();
-    sw.Stop();
-    if (sw.ElapsedMilliseconds > 10)
-        Console.WriteLine($"[GW-PERF] StaticFiles+Downstream: {sw.ElapsedMilliseconds}ms");
-});
-
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
 if (rateLimiterEnabled)
 {
 	app.UseRateLimiter();
-
-	// 诊断：限流中间件耗时
-	app.Use(async (context, next) =>
-	{
-		var sw = System.Diagnostics.Stopwatch.StartNew();
-		await next();
-		sw.Stop();
-		if (sw.ElapsedMilliseconds > 10)
-			Console.WriteLine($"[GW-PERF] RateLimitingMiddleware: {sw.ElapsedMilliseconds}ms");
-	});
-
 	app.UseGatewayRateLimiting();
 }
 

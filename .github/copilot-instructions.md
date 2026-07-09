@@ -8,5 +8,4 @@
 - Keep code and docs in the same change set for feature changes.
 - Do not commit secrets, production connection strings, JWT signing keys, or local-only environment files.
 - Prefer checks: `dotnet build Api/src/ST.slnx`, `cd Web && pnpm build`, and `git diff --check`.
-
 - For new services read `docs/backend/service-template.md`; for new APIs read `docs/backend/api-routing.md` and verify downstream + Gateway paths to avoid 404/502.

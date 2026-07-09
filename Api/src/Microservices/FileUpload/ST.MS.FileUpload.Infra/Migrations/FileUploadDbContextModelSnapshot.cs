@@ -17,7 +17,7 @@ namespace ST.MS.FileUpload.Infra.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.5")
+                .HasAnnotation("ProductVersion", "10.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -113,10 +113,6 @@ namespace ST.MS.FileUpload.Infra.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at_utc");
 
-                    b.Property<Guid>("SessionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("session_id");
-
                     b.Property<long>("Size")
                         .HasColumnType("bigint")
                         .HasColumnName("size");
@@ -129,17 +125,14 @@ namespace ST.MS.FileUpload.Infra.Migrations
 
                     b.Property<Guid>("UploadId")
                         .HasColumnType("uuid")
-                        .HasColumnName("upload_id");
+                        .HasColumnName("session_id");
 
                     b.HasKey("Id")
                         .HasName("pk_upload_chunks");
 
-                    b.HasIndex("SessionId")
-                        .HasDatabaseName("ix_upload_chunks_session_id");
-
                     b.HasIndex("UploadId", "ChunkIndex")
                         .IsUnique()
-                        .HasDatabaseName("ix_upload_chunks_upload_id_chunk_index");
+                        .HasDatabaseName("ix_upload_chunks_session_id_chunk_index");
 
                     b.ToTable("upload_chunks", (string)null);
                 });
@@ -238,7 +231,7 @@ namespace ST.MS.FileUpload.Infra.Migrations
                 {
                     b.HasOne("ST.MS.FileUpload.Domain.Entities.FileUploadSession", "Session")
                         .WithMany("Chunks")
-                        .HasForeignKey("SessionId")
+                        .HasForeignKey("UploadId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_upload_chunks_upload_sessions_session_id");

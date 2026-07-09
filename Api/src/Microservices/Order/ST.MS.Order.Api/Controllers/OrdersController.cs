@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ST.MS.Order.Application.Dto;
 using ST.MS.Order.Application.Services;
+using ST.Shared.Application.Dtos;
 using ST.Shared.WebApi.Controller;
 
 namespace ST.MS.Order.Api.Controllers;
@@ -27,7 +28,7 @@ public class OrdersController : AbstractControllerBase
 	/// <param name="input">订单信息</param>
 	/// <param name="ct">取消令牌</param>
 	/// <returns>创建的订单</returns>
-	[HttpPost("api/orders")]
+	[HttpPost]
 	public async Task<ActionResult<OrderDto>> CreateOrder([FromBody] CreateOrderDto input, CancellationToken ct)
 	{
 		var order = await _orderService.CreateOrderAsync(input, ct);
@@ -38,12 +39,22 @@ public class OrdersController : AbstractControllerBase
 	}
 
 	/// <summary>
+	/// 订单列表
+	/// </summary>
+	[HttpGet]
+	public async Task<ActionResult<PagedResultDto<OrderDto>>> GetOrders([FromQuery] OrderQueryDto query, CancellationToken ct)
+	{
+		var result = await _orderService.GetOrdersAsync(query, ct);
+		return Ok(result);
+	}
+
+	/// <summary>
 	/// 查询订单详情
 	/// </summary>
 	/// <param name="id">订单 ID</param>
 	/// <param name="ct">取消令牌</param>
 	/// <returns>订单详情</returns>
-	[HttpGet("api/orders/{id:guid}")]
+	[HttpGet("{id:guid}")]
 	public async Task<ActionResult<OrderDto>> GetOrder(Guid id, CancellationToken ct)
 	{
 		var order = await _orderService.GetOrderAsync(id, ct);
@@ -63,7 +74,7 @@ public class OrdersController : AbstractControllerBase
 	/// <param name="input">取消原因</param>
 	/// <param name="ct">取消令牌</param>
 	/// <returns>取消后的订单</returns>
-	[HttpPost("api/orders/{id:guid}/cancel")]
+	[HttpPost("{id:guid}/cancel")]
 	public async Task<ActionResult<OrderDto>> CancelOrder(Guid id, [FromBody] CancelOrderDto input, CancellationToken ct)
 	{
 		var order = await _orderService.CancelOrderAsync(id, input.Reason, ct);
