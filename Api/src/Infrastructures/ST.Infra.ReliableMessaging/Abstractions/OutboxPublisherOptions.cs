@@ -31,9 +31,9 @@ public sealed class OutboxPublisherOptions
 	public int BaseRetryDelaySeconds { get; set; } = 10;
 
 	/// <summary>
-	/// RabbitMQ Exchange 名称。默认 st.outbox。
+	/// RabbitMQ Exchange 名称。默认 st.eventbus（与 EventBus 交换机一致，确保订阅方能收到 Outbox 消息）。
 	/// </summary>
-	public string ExchangeName { get; set; } = "st.outbox";
+	public string ExchangeName { get; set; } = "st.eventbus";
 
 	/// <summary>
 	/// 是否持久化消息。默认 true。

@@ -60,10 +60,15 @@ public class Order : AggregateRoot, ITenantEntity
 	}
 
 	/// <summary>
-	/// 标记已支付。
+	/// 标记已支付（幂等：已支付则忽略）。
 	/// </summary>
 	public void MarkPaid()
 	{
+		if (Status == OrderStatus.Paid)
+		{
+			return;
+		}
+
 		if (Status != OrderStatus.InventoryFrozen)
 		{
 			throw new InvalidOperationException($"Cannot mark paid for order in {Status} status.");

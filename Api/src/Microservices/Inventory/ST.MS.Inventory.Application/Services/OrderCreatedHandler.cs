@@ -73,7 +73,7 @@ public class OrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrat
 			_outboxStore.Add(new OutboxMessage
 			{
 				AggregateId = @event.OrderId,
-				EventType = nameof(InventoryFrozenIntegrationEvent),
+				EventType = typeof(InventoryFrozenIntegrationEvent).FullName!,
 				Payload = JsonSerializer.Serialize(frozenEvent, frozenEvent.GetType(), JsonOptions),
 				Status = OutboxStatus.Pending,
 				OccurredAtUtc = DateTime.UtcNow
@@ -89,7 +89,7 @@ public class OrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrat
 			_outboxStore.Add(new OutboxMessage
 			{
 				AggregateId = @event.OrderId,
-				EventType = nameof(InventoryFreezeFailedIntegrationEvent),
+				EventType = typeof(InventoryFreezeFailedIntegrationEvent).FullName!,
 				Payload = JsonSerializer.Serialize(failedEvent, failedEvent.GetType(), JsonOptions),
 				Status = OutboxStatus.Pending,
 				OccurredAtUtc = DateTime.UtcNow

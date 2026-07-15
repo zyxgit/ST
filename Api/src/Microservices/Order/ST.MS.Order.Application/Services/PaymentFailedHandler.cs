@@ -93,7 +93,7 @@ public class PaymentFailedHandler : IIntegrationEventHandler<PaymentFailedIntegr
 		_outboxStore.Add(new OutboxMessage
 		{
 			AggregateId = order.Id,
-			EventType = nameof(ST.Infra.IntegrationEvents.Orders.OrderCanceledIntegrationEvent),
+			EventType = typeof(ST.Infra.IntegrationEvents.Orders.OrderCanceledIntegrationEvent).FullName!,
 			Payload = JsonSerializer.Serialize(cancelEvent, cancelEvent.GetType(), JsonOptions),
 			Status = OutboxStatus.Pending,
 			OccurredAtUtc = DateTime.UtcNow

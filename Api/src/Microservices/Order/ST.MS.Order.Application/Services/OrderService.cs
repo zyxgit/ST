@@ -134,7 +134,7 @@ public class OrderService : IOrderService, ITransientDependency
 		var outboxMessage = new OutboxMessage
 		{
 			AggregateId = order.Id,
-			EventType = nameof(OrderCreatedIntegrationEvent),
+			EventType = typeof(OrderCreatedIntegrationEvent).FullName!,
 			Payload = JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType(), JsonOptions),
 			Status = OutboxStatus.Pending,
 			OccurredAtUtc = DateTime.UtcNow
@@ -236,7 +236,7 @@ public class OrderService : IOrderService, ITransientDependency
 		var outboxMessage = new OutboxMessage
 		{
 			AggregateId = order.Id,
-			EventType = nameof(OrderCanceledIntegrationEvent),
+			EventType = typeof(OrderCanceledIntegrationEvent).FullName!,
 			Payload = JsonSerializer.Serialize(cancelEvent, cancelEvent.GetType(), JsonOptions),
 			Status = OutboxStatus.Pending,
 			OccurredAtUtc = DateTime.UtcNow

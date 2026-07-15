@@ -1,3 +1,4 @@
+using ST.Infra.Repository.Entities;
 using ST.MS.Payment.Domain.Enums;
 
 namespace ST.MS.Payment.Domain.Entities;
@@ -6,7 +7,7 @@ namespace ST.MS.Payment.Domain.Entities;
 /// 支付记录聚合根。
 /// 模拟支付服务，不接真实三方支付。
 /// </summary>
-public class Payment : AggregateRoot, ITenantEntity
+public class Payment : AggregateRoot, ITenantEntity, IConcurrency
 {
 	/// <summary>关联的订单 ID</summary>
 	public Guid OrderId { get; set; }
@@ -22,6 +23,9 @@ public class Payment : AggregateRoot, ITenantEntity
 
 	/// <summary>租户 ID</summary>
 	public Guid TenantId { get; set; }
+
+	/// <summary>并发控制列</summary>
+	public Guid RowVersion { get; set; }
 
 	public Payment()
 	{

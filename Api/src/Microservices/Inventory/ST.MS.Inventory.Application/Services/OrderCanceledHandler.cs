@@ -66,7 +66,7 @@ public class OrderCanceledHandler : IIntegrationEventHandler<OrderCanceledIntegr
 		_outboxStore.Add(new OutboxMessage
 		{
 			AggregateId = @event.OrderId,
-			EventType = nameof(InventoryReleasedIntegrationEvent),
+			EventType = typeof(InventoryReleasedIntegrationEvent).FullName!,
 			Payload = JsonSerializer.Serialize(releasedEvent, releasedEvent.GetType(), JsonOptions),
 			Status = OutboxStatus.Pending,
 			OccurredAtUtc = DateTime.UtcNow

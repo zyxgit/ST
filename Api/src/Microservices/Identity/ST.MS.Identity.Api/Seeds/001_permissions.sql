@@ -115,7 +115,7 @@ WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'system:tenant:quota');
 -- ============================================================
 
 INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, sort, modify_by, modify_time, create_by, create_time)
-SELECT '11111111-1111-1111-1111-111111111301'::uuid, '11111111-1111-1111-1111-111111111300'::uuid, 'order', '订单管理', 1, '/order', 'shopping', NULL, false, true, false, false, 20, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
+SELECT '11111111-1111-1111-1111-111111111301'::uuid, NULL, 'order', '订单管理', 1, '/order', 'shopping', NULL, false, true, false, false, 20, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'order');
 
 INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, sort, modify_by, modify_time, create_by, create_time)
@@ -139,7 +139,7 @@ WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'order:flash-sale');
 -- ============================================================
 
 INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, sort, modify_by, modify_time, create_by, create_time)
-SELECT '11111111-1111-1111-1111-111111111401'::uuid, '11111111-1111-1111-1111-111111111400'::uuid, 'inventory', '库存管理', 1, '/inventory', 'box', NULL, false, true, false, false, 30, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
+SELECT '11111111-1111-1111-1111-111111111401'::uuid, NULL, 'inventory', '库存管理', 1, '/inventory', 'box', NULL, false, true, false, false, 30, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'inventory');
 
 INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, sort, modify_by, modify_time, create_by, create_time)
@@ -163,7 +163,7 @@ WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'inventory:sku:stock');
 -- ============================================================
 
 INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, sort, modify_by, modify_time, create_by, create_time)
-SELECT '11111111-1111-1111-1111-111111111501'::uuid, '11111111-1111-1111-1111-111111111500'::uuid, 'payment', '支付管理', 1, '/payment', 'money', NULL, false, true, false, false, 40, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
+SELECT '11111111-1111-1111-1111-111111111501'::uuid, NULL, 'payment', '支付管理', 1, '/payment', 'money', NULL, false, true, false, false, 40, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'payment');
 
 INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, sort, modify_by, modify_time, create_by, create_time)

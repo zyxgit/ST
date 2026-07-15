@@ -37,9 +37,9 @@ var orderDb = postgres.AddDatabase("st-order", "st_order");
 var inventoryDb = postgres.AddDatabase("st-inventory", "st_inventory");
 var paymentDb = postgres.AddDatabase("st-payment", "st_payment");
 
-rabbitMq = builder.AddRabbitMQ("rabbitmq", rabbitUser, rabbitPassword, port: 5672)
+rabbitMq = builder.AddRabbitMQ("rabbitmq", rabbitUser, rabbitPassword, port: 15672)
 	.WithDataVolume()
-	.WithManagementPlugin(port: 15672)
+	.WithManagementPlugin(port: 15673)
 	.WithLifetime(ContainerLifetime.Persistent);
 
 // ── 可观测性栈 ──────────────────────────────────────────────────────────────
@@ -167,7 +167,7 @@ builder.AddProject<Projects.ST_MS_Order_Api>("st-ms-order-api")
 	.WaitFor(redis)
 	.WaitFor(rabbitMq);
 
-builder.AddProject<Projects.ST_Gateway>("st-gateway")
+builder.AddProject<Projects.ST_Gateway>("st-gateway", launchProfileName: "https")
 	.WithReference(redis)
 	.WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", otelEndpoint)
 	.WithEnvironment("OTEL_EXPORTER_OTLP_PROTOCOL", otelProtocol)

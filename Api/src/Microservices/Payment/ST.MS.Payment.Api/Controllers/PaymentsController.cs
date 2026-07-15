@@ -24,7 +24,7 @@ public class PaymentsController : AbstractControllerBase
 	/// <summary>
 	/// 模拟支付成功
 	/// </summary>
-	[HttpPost("api/payments/mock/pay")]
+	[HttpPost("mock/pay")]
 	public async Task<ActionResult<PaymentDto>> MockPay([FromQuery] Guid orderId, CancellationToken ct)
 	{
 		var payment = await _paymentService.MockPayAsync(orderId, ct);
@@ -37,7 +37,7 @@ public class PaymentsController : AbstractControllerBase
 	/// <summary>
 	/// 模拟支付失败
 	/// </summary>
-	[HttpPost("api/payments/mock/fail")]
+	[HttpPost("mock/fail")]
 	public async Task<ActionResult<PaymentDto>> MockFail(
 		[FromQuery] Guid orderId,
 		[FromQuery] string reason = "模拟支付失败",
@@ -53,7 +53,7 @@ public class PaymentsController : AbstractControllerBase
 	/// <summary>
 	/// 查询支付记录
 	/// </summary>
-	[HttpGet("api/payments/{orderId:guid}")]
+	[HttpGet("{orderId:guid}")]
 	public async Task<ActionResult<PaymentDto>> GetPayment(Guid orderId, CancellationToken ct)
 	{
 		var payment = await _paymentService.GetPaymentAsync(orderId, ct);

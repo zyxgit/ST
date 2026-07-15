@@ -59,13 +59,25 @@ public class PaymentService : IPaymentService, ITransientDependency
 		_outboxStore.Add(new OutboxMessage
 		{
 			AggregateId = orderId,
-			EventType = nameof(PaymentSucceededIntegrationEvent),
+			EventType = typeof(PaymentSucceededIntegrationEvent).FullName!,
 			Payload = JsonSerializer.Serialize(successEvent, successEvent.GetType(), JsonOptions),
 			Status = OutboxStatus.Pending,
 			OccurredAtUtc = DateTime.UtcNow
 		});
 
-		await _dbContext.SaveChangesAsync(ct);
+		try
+		{
+			await _dbContext.SaveChangesAsync(ct);
+		}
+		catch (DbUpdateConcurrencyException)
+		{
+			// 乐观并发冲突：另一个请求已更新此支付记录，重新加载并返回当前状态
+			_logger.LogWarning("Concurrency conflict on payment for OrderId={OrderId}, reloading", orderId);
+			var current = await _dbContext.Payments
+				.AsNoTracking()
+				.FirstOrDefaultAsync(p => p.OrderId == orderId, ct);
+			return MapToDto(current!);
+		}
 
 		PaymentMetrics.Succeeded.Add(1);
 
@@ -99,13 +111,24 @@ public class PaymentService : IPaymentService, ITransientDependency
 		_outboxStore.Add(new OutboxMessage
 		{
 			AggregateId = orderId,
-			EventType = nameof(PaymentFailedIntegrationEvent),
+			EventType = typeof(PaymentFailedIntegrationEvent).FullName!,
 			Payload = JsonSerializer.Serialize(failEvent, failEvent.GetType(), JsonOptions),
 			Status = OutboxStatus.Pending,
 			OccurredAtUtc = DateTime.UtcNow
 		});
 
-		await _dbContext.SaveChangesAsync(ct);
+		try
+		{
+			await _dbContext.SaveChangesAsync(ct);
+		}
+		catch (DbUpdateConcurrencyException)
+		{
+			_logger.LogWarning("Concurrency conflict on payment fail for OrderId={OrderId}, reloading", orderId);
+			var current = await _dbContext.Payments
+				.AsNoTracking()
+				.FirstOrDefaultAsync(p => p.OrderId == orderId, ct);
+			return MapToDto(current!);
+		}
 
 		PaymentMetrics.Failed.Add(1);
 
