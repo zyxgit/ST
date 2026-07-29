@@ -1,9 +1,14 @@
 import request from '@/lib/request'
 import type { PaymentDto } from '@/types/payment'
 
-/** 查询支付记录 */
+/** 查询支付记录（按订单 ID） */
 export function getPayment(orderId: string) {
   return request.get<PaymentDto>(`/payments/${orderId}`)
+}
+
+/** 查询支付记录（按订单号） */
+export function getPaymentByOrderNo(orderNo: string) {
+  return request.get<PaymentDto>(`/payments/by-order-no/${orderNo}`)
 }
 
 /** 模拟支付成功 */

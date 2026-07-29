@@ -14,6 +14,7 @@ namespace ST.Infra.IntegrationEvents.Orders;
 /// <param name="RedisPreFrozen">是否已在 Order Service 完成 Redis 预扣。为 true 时 Inventory Service 跳过 Redis 冻结，仅做 DB 兜底。</param>
 public sealed record OrderCreatedIntegrationEvent(
 	Guid OrderId,
+	string OrderNo,
 	Guid UserId,
 	decimal TotalAmount,
 	List<OrderItemData> Items,

@@ -12,7 +12,7 @@ namespace ST.MS.Payment.Application.Services;
 /// 处理 OrderCreatedIntegrationEvent。
 /// 创建待支付记录，等待手动触发支付（模拟）。
 /// </summary>
-public class OrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrationEvent>
+public class OrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrationEvent>, ITransientDependency
 {
 	private readonly PaymentDbContext _dbContext;
 	private readonly IInboxStore _inboxStore;
@@ -49,7 +49,7 @@ public class OrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrat
 		});
 
 		// 创建待支付记录
-		var payment = new Domain.Entities.Payment(@event.OrderId, @event.TotalAmount);
+		var payment = new Domain.Entities.Payment(@event.OrderId, @event.OrderNo, @event.TotalAmount);
 		_dbContext.Payments.Add(payment);
 
 		await _inboxStore.MarkAsProcessedAsync(@event.Id, Consumer, cancellationToken);

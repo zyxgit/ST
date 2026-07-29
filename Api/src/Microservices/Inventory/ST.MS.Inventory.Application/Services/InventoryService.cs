@@ -39,7 +39,7 @@ public class InventoryService : IInventoryService, ITransientDependency
 			.AnyAsync(r => r.OrderId == orderId && r.Status == FreezeStatus.Frozen, ct);
 		if (existingFreeze)
 		{
-			_logger.LogWarning("Inventory already frozen for order {OrderId}, skipping.", orderId);
+			_logger.LogWarning("订单 {OrderId} 库存已冻结，跳过。", orderId);
 			return true;
 		}
 
@@ -55,7 +55,7 @@ public class InventoryService : IInventoryService, ITransientDependency
 				{
 					// Redis 库存不足，回滚已预扣的项
 					_logger.LogWarning(
-						"Redis insufficient stock for SkuId={SkuId}. Rolling back {Count} reserved items.",
+						"Redis 库存不足，SkuId={SkuId}。回滚 {Count} 个已预扣项。",
 						item.SkuId, redisReserved.Count);
 
 					foreach (var reserved in redisReserved)
@@ -75,16 +75,17 @@ public class InventoryService : IInventoryService, ITransientDependency
 
 		foreach (var item in items)
 		{
-			var affected = await _dbContext.Database.ExecuteSqlRawAsync(
-				"UPDATE skus SET available = available - {0}, frozen = frozen + {0} " +
-				"WHERE sku_id = {1} AND available >= {0}",
-				item.Quantity, item.SkuId, ct);
+			var affected = await _dbContext.Skus
+				.Where(s => s.SkuId == item.SkuId && s.Available >= item.Quantity)
+				.ExecuteUpdateAsync(s => s
+					.SetProperty(x => x.Available, x => x.Available - item.Quantity)
+					.SetProperty(x => x.Frozen, x => x.Frozen + item.Quantity), ct);
 
 			if (affected == 0)
 			{
 				// DB 层库存不足（Redis 与 DB 数据不一致），回滚 Redis 预扣
 				_logger.LogWarning(
-					"DB insufficient stock for SkuId={SkuId}. Rolling back Redis pre-deduction.",
+					"DB 库存不足，SkuId={SkuId}。回滚 Redis 预扣。",
 					item.SkuId);
 
 				// 回滚本次所有 Redis 预扣
@@ -96,10 +97,11 @@ public class InventoryService : IInventoryService, ITransientDependency
 				// 回滚已冻结的 DB 记录
 				foreach (var record in freezeRecords)
 				{
-					await _dbContext.Database.ExecuteSqlRawAsync(
-						"UPDATE skus SET available = available + {0}, frozen = frozen - {0} " +
-						"WHERE sku_id = {1}",
-						record.Quantity, record.SkuId, ct);
+					await _dbContext.Skus
+						.Where(s => s.SkuId == record.SkuId)
+						.ExecuteUpdateAsync(s => s
+							.SetProperty(x => x.Available, x => x.Available + record.Quantity)
+							.SetProperty(x => x.Frozen, x => x.Frozen - record.Quantity), ct);
 				}
 
 				return false;
@@ -112,8 +114,18 @@ public class InventoryService : IInventoryService, ITransientDependency
 
 		await _dbContext.SaveChangesAsync(ct);
 
+		// DB 冻结成功后，以 DB 为准同步 Redis（修复 Redis 与 DB 不一致）
+		foreach (var item in items)
+		{
+			var sku = await _dbContext.Skus.AsNoTracking().FirstOrDefaultAsync(s => s.SkuId == item.SkuId, ct);
+			if (sku is not null)
+			{
+				await _inventoryRedis.SyncStockAsync(sku.SkuId, sku.Available, sku.Frozen, sku.Sold, ct);
+			}
+		}
+
 		_logger.LogInformation(
-			"Inventory frozen for OrderId={OrderId}. Items={ItemCount} (Redis + DB)",
+			"库存冻结成功，OrderId={OrderId}，商品数={ItemCount}（Redis + DB）",
 			orderId, items.Count);
 
 		return true;
@@ -127,17 +139,18 @@ public class InventoryService : IInventoryService, ITransientDependency
 
 		if (freezeRecords.Count == 0)
 		{
-			_logger.LogWarning("No frozen records found for OrderId={OrderId}.", orderId);
+			_logger.LogWarning("未找到订单 {OrderId} 的冻结记录。", orderId);
 			return;
 		}
 
 		foreach (var record in freezeRecords)
 		{
 			// 释放 DB 库存：frozen → available
-			await _dbContext.Database.ExecuteSqlRawAsync(
-				"UPDATE skus SET available = available + {0}, frozen = frozen - {0} " +
-				"WHERE sku_id = {1}",
-				record.Quantity, record.SkuId, ct);
+			await _dbContext.Skus
+				.Where(s => s.SkuId == record.SkuId)
+				.ExecuteUpdateAsync(s => s
+					.SetProperty(x => x.Available, x => x.Available + record.Quantity)
+					.SetProperty(x => x.Frozen, x => x.Frozen - record.Quantity), ct);
 
 			// 释放 Redis 库存：frozen → available
 			await _inventoryRedis.ReleaseAsync(record.SkuId, record.Quantity, ct);
@@ -147,8 +160,18 @@ public class InventoryService : IInventoryService, ITransientDependency
 
 		await _dbContext.SaveChangesAsync(ct);
 
+		// DB 释放成功后，以 DB 为准同步 Redis
+		foreach (var record in freezeRecords)
+		{
+			var sku = await _dbContext.Skus.AsNoTracking().FirstOrDefaultAsync(s => s.SkuId == record.SkuId, ct);
+			if (sku is not null)
+			{
+				await _inventoryRedis.SyncStockAsync(sku.SkuId, sku.Available, sku.Frozen, sku.Sold, ct);
+			}
+		}
+
 		_logger.LogInformation(
-			"Inventory released for OrderId={OrderId}. Records={Count} (Redis + DB)",
+			"库存释放成功，OrderId={OrderId}，记录数={Count}（Redis + DB）",
 			orderId, freezeRecords.Count);
 	}
 
@@ -195,7 +218,7 @@ public class InventoryService : IInventoryService, ITransientDependency
 		// 同步库存到 Redis
 		await _inventoryRedis.SyncStockAsync(sku.SkuId, sku.Available, sku.Frozen, sku.Sold, ct);
 
-		_logger.LogInformation("SKU created. SkuId={SkuId} Name={Name} Stock={Stock}",
+		_logger.LogInformation("SKU 创建成功，SkuId={SkuId} 名称={Name} 库存={Stock}",
 			sku.SkuId, sku.ProductName, sku.Available);
 
 		return MapToDto(sku);
@@ -212,7 +235,31 @@ public class InventoryService : IInventoryService, ITransientDependency
 		// 同步更新 Redis
 		await _inventoryRedis.SyncStockAsync(sku.SkuId, sku.Available, sku.Frozen, sku.Sold, ct);
 
-		_logger.LogInformation("Stock increased. SkuId={SkuId} Added={Added} Available={Available}",
+		_logger.LogInformation("库存增加成功，SkuId={SkuId} 增加={Added} 可用={Available}",
+			skuId, quantity, sku.Available);
+
+		return MapToDto(sku);
+	}
+
+	public async Task<SkuDto> DeductStockAsync(Guid skuId, int quantity, CancellationToken ct = default)
+	{
+		var sku = await _dbContext.Skus.FirstOrDefaultAsync(s => s.SkuId == skuId, ct)
+			?? throw new BusinessException("SKU 不存在", errorCode: "SKU_NOT_FOUND");
+
+		if (sku.Available < quantity)
+		{
+			throw new BusinessException(
+				$"可用库存不足，当前可用: {sku.Available}，扣减: {quantity}",
+				errorCode: "INSUFFICIENT_STOCK");
+		}
+
+		sku.Available -= quantity;
+		await _dbContext.SaveChangesAsync(ct);
+
+		// 同步更新 Redis
+		await _inventoryRedis.SyncStockAsync(sku.SkuId, sku.Available, sku.Frozen, sku.Sold, ct);
+
+		_logger.LogInformation("库存扣减成功，SkuId={SkuId} 扣减={Deducted} 可用={Available}",
 			skuId, quantity, sku.Available);
 
 		return MapToDto(sku);

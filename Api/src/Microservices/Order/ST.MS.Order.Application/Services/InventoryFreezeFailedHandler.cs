@@ -14,7 +14,7 @@ namespace ST.MS.Order.Application.Services;
 /// 处理 InventoryFreezeFailedIntegrationEvent。
 /// 将订单标记为 Failed，Saga 标记失败，释放 Redis 预扣库存。
 /// </summary>
-public class InventoryFreezeFailedHandler : IIntegrationEventHandler<InventoryFreezeFailedIntegrationEvent>
+public class InventoryFreezeFailedHandler : IIntegrationEventHandler<InventoryFreezeFailedIntegrationEvent>, ITransientDependency
 {
 	private readonly OrderDbContext _dbContext;
 	private readonly IInboxStore _inboxStore;

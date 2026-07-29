@@ -17,7 +17,7 @@ import { computed, h, onMounted, ref } from 'vue'
 import PageSection from '@/components/common/PageSection.vue'
 import ServiceUnavailableState from '@/components/common/ServiceUnavailableState.vue'
 import TableActions from '@/components/common/TableActions.vue'
-import { createSku, getSkus, increaseStock } from '@/api/inventory'
+import { createSku, deductStock, getSkus, increaseStock } from '@/api/inventory'
 import { PermissionCode } from '@/constants/permissions'
 import { useAuthStore } from '@/stores/auth'
 import { useDiscrete } from '@/lib/naive'
@@ -56,7 +56,10 @@ const columns: DataTableColumns<SkuDto> = [
     render: (row: SkuDto) => {
       const actions = []
       if (canStock.value) {
-        actions.push({ key: 'increase', label: '补货', onClick: () => openIncreaseModal(row) })
+        actions.push(
+          { key: 'increase', label: '补货', onClick: () => openIncreaseModal(row) },
+          { key: 'deduct', label: '扣减', onClick: () => openDeductModal(row) },
+        )
       }
       return h(TableActions, { actions })
     },
@@ -128,6 +131,37 @@ async function handleIncrease() {
     message.error('操作失败')
   } finally {
     increaseLoading.value = false
+  }
+}
+
+// 扣减库存弹窗
+const showDeductModal = ref(false)
+const deductTarget = ref<SkuDto | null>(null)
+const deductQuantity = ref(1)
+const deductLoading = ref(false)
+
+function openDeductModal(sku: SkuDto) {
+  deductTarget.value = sku
+  deductQuantity.value = 1
+  showDeductModal.value = true
+}
+
+async function handleDeduct() {
+  if (!deductTarget.value || deductQuantity.value <= 0) {
+    message.warning('数量必须大于 0')
+    return
+  }
+
+  deductLoading.value = true
+  try {
+    await deductStock(deductTarget.value.skuId, deductQuantity.value)
+    message.success('库存已扣减')
+    showDeductModal.value = false
+    await loadData()
+  } catch {
+    message.error('操作失败')
+  } finally {
+    deductLoading.value = false
   }
 }
 
@@ -212,6 +246,29 @@ onMounted(() => {
           <n-space justify="end">
             <n-button @click="showIncreaseModal = false">取消</n-button>
             <n-button type="primary" :loading="increaseLoading" @click="handleIncrease">确认补货</n-button>
+          </n-space>
+        </template>
+      </n-modal>
+
+      <!-- 扣减库存弹窗 -->
+      <n-modal v-model:show="showDeductModal" preset="card" title="扣减库存" style="max-width: 400px">
+        <template v-if="deductTarget">
+          <div style="margin-bottom: 12px">
+            商品：<strong>{{ deductTarget.productName }}</strong>
+          </div>
+          <div style="margin-bottom: 16px">
+            当前可用：<n-tag type="success" size="small">{{ deductTarget.available }}</n-tag>
+          </div>
+          <n-form label-placement="left" label-width="60">
+            <n-form-item label="数量">
+              <n-input-number v-model:value="deductQuantity" :min="1" :max="deductTarget.available" style="width: 100%" />
+            </n-form-item>
+          </n-form>
+        </template>
+        <template #footer>
+          <n-space justify="end">
+            <n-button @click="showDeductModal = false">取消</n-button>
+            <n-button type="error" :loading="deductLoading" @click="handleDeduct">确认扣减</n-button>
           </n-space>
         </template>
       </n-modal>

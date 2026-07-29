@@ -119,6 +119,9 @@ public class TestController : AbstractControllerBase
 	public async Task<ActionResult<List<TestDto>>> GetTestList()
 	{
 		//return await _testService.GetTests();
+
+		new string("");
 		return new List<TestDto>();
 	}
+
 }

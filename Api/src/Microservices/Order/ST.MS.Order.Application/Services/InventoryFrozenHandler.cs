@@ -13,7 +13,7 @@ namespace ST.MS.Order.Application.Services;
 /// 处理 InventoryFrozenIntegrationEvent。
 /// 更新订单状态为 InventoryFrozen，推进 Saga 步骤。
 /// </summary>
-public class InventoryFrozenHandler : IIntegrationEventHandler<InventoryFrozenIntegrationEvent>
+public class InventoryFrozenHandler : IIntegrationEventHandler<InventoryFrozenIntegrationEvent>, ITransientDependency
 {
 	private readonly OrderDbContext _dbContext;
 	private readonly IInboxStore _inboxStore;

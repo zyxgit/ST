@@ -11,6 +11,9 @@ public sealed class PaymentDto
 	/// <summary>订单 ID</summary>
 	public Guid OrderId { get; set; }
 
+	/// <summary>订单号</summary>
+	public string OrderNo { get; set; } = string.Empty;
+
 	/// <summary>支付金额</summary>
 	public decimal Amount { get; set; }
 

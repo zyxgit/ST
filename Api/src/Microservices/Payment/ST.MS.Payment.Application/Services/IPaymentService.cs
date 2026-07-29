@@ -21,4 +21,9 @@ public interface IPaymentService
 	/// 查询支付记录。
 	/// </summary>
 	Task<PaymentDto?> GetPaymentAsync(Guid orderId, CancellationToken ct = default);
+
+	/// <summary>
+	/// 按订单号查询支付记录。
+	/// </summary>
+	Task<PaymentDto?> GetPaymentByOrderNoAsync(string orderNo, CancellationToken ct = default);
 }

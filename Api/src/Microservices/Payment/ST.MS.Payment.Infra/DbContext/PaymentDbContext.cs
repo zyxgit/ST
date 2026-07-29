@@ -27,8 +27,10 @@ public class PaymentDbContext : EfDbContextBase
 		{
 			entity.ToTable("payments");
 			entity.Property(p => p.Amount).HasPrecision(18, 2);
+			entity.Property(p => p.OrderNo).HasMaxLength(50);
 			entity.Property(p => p.FailureReason).HasMaxLength(500);
 			entity.HasIndex(p => p.OrderId).IsUnique();
+			entity.HasIndex(p => p.OrderNo);
 			entity.HasIndex(p => p.Status);
 			entity.Property(p => p.RowVersion).IsConcurrencyToken();
 		});

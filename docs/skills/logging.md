@@ -23,6 +23,8 @@ NLog、OpenTelemetry、异常日志、操作日志、traceId、脱敏。
 - 日志记录业务 ID、事件类型、traceId。
 - 异常日志保留异常对象。
 - 操作日志通过现有基础设施采集。
+- 日志消息统一使用中文，格式：`"动作描述，Key1={Val1} Key2={Val2}"`。
+- 结构化日志参数使用 PascalCase 命名（如 `{OrderId}`），不要用 `{order_id}` 或 `{orderId}`。
 
 ## 禁止事项
 

@@ -22,3 +22,10 @@ export function increaseStock(skuId: string, quantity: number) {
     params: { quantity },
   })
 }
+
+/** 扣减库存 */
+export function deductStock(skuId: string, quantity: number) {
+  return request.post<SkuDto>(`/inventory/skus/${skuId}/stock/deduct`, null, {
+    params: { quantity },
+  })
+}

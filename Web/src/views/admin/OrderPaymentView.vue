@@ -18,7 +18,7 @@ import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import PageSection from '@/components/common/PageSection.vue'
 import ServiceUnavailableState from '@/components/common/ServiceUnavailableState.vue'
 import TableActions from '@/components/common/TableActions.vue'
-import { getOrders } from '@/api/order'
+import { getOrder, getOrders } from '@/api/order'
 import { mockFail, mockPay } from '@/api/payment'
 import { PermissionCode } from '@/constants/permissions'
 import { formatDateTime } from '@/lib/dayjs'
@@ -54,6 +54,7 @@ const loading = ref(false)
 const loadError = ref('')
 const items = ref<OrderDto[]>([])
 const totalCount = ref(0)
+const processingOrderIds = ref(new Set<string>())
 
 const query = reactive({
   status: null as number | null, // 默认显示全部，Pending(0) 和 InventoryFrozen(1) 都可支付
@@ -110,13 +111,14 @@ const columns: DataTableColumns<OrderDto> = [
     width: 200,
     align: 'center',
     render: (row: OrderDto) => {
-      const actions: { key: string; label: string; onClick: () => void | Promise<void>; type?: 'error' }[] = [
+      const actions: { key: string; label: string; onClick: () => void | Promise<void>; type?: 'error'; disabled?: boolean }[] = [
         { key: 'detail', label: '详情', onClick: () => showDetail(row) },
       ]
 
+      const isProcessing = processingOrderIds.value.has(row.id)
       if (row.status === 0 || row.status === 1) {
-        actions.push({ key: 'pay', label: '支付', onClick: () => handlePay(row) })
-        actions.push({ key: 'fail', label: '模拟失败', type: 'error', onClick: () => handleFail(row) })
+        actions.push({ key: 'pay', label: '支付', disabled: isProcessing, onClick: () => handlePay(row) })
+        actions.push({ key: 'fail', label: '模拟失败', type: 'error', disabled: isProcessing, onClick: () => handleFail(row) })
       }
 
       return h(TableActions, { actions })
@@ -152,37 +154,84 @@ async function loadData() {
   }
 }
 
+/** 轮询订单状态直到不再是 Pending(0)/InventoryFrozen(1)，或超时 */
+async function waitForOrderStatus(orderId: string, targetStatus: number, timeoutMs = 10_000, intervalMs = 1_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, intervalMs))
+    try {
+      const order = await getOrder(orderId)
+      if (order.status === targetStatus) return true
+      // 如果进入了终态（已取消/失败）且不是目标状态，直接返回
+      if (order.status === 3 || order.status === 4) return false
+    } catch {
+      // 查询失败继续重试
+    }
+  }
+  return false
+}
+
 function handlePay(row: OrderDto) {
+  if (processingOrderIds.value.has(row.id)) return
+
   dialog.info({
     title: '确认支付',
     content: `确定要支付订单「${row.orderNo}」吗？金额：¥${row.totalAmount.toFixed(2)}`,
     positiveText: '确认支付',
     negativeText: '返回',
     onPositiveClick: async () => {
+      if (processingOrderIds.value.has(row.id)) return
+      processingOrderIds.value.add(row.id)
+      const loadingMsg = message.loading('支付处理中...', { duration: 0 })
       try {
         await mockPay(row.id)
-        message.success('支付成功')
+        // 轮询等待订单状态变为 Paid(2)
+        const success = await waitForOrderStatus(row.id, 2)
+        loadingMsg.destroy()
+        if (success) {
+          message.success('支付成功')
+        } else {
+          message.warning('支付已提交，但订单状态未更新，请刷新查看')
+        }
         await loadData()
       } catch {
+        loadingMsg.destroy()
         message.error('支付失败')
+      } finally {
+        processingOrderIds.value.delete(row.id)
       }
     },
   })
 }
 
 function handleFail(row: OrderDto) {
+  if (processingOrderIds.value.has(row.id)) return
+
   dialog.warning({
     title: '模拟支付失败',
     content: `确定要模拟订单「${row.orderNo}」支付失败吗？`,
     positiveText: '确认',
     negativeText: '返回',
     onPositiveClick: async () => {
+      if (processingOrderIds.value.has(row.id)) return
+      processingOrderIds.value.add(row.id)
+      const loadingMsg = message.loading('处理中...', { duration: 0 })
       try {
         await mockFail(row.id)
-        message.success('模拟支付失败成功')
+        // 轮询等待订单状态变为 Canceled(3)
+        const success = await waitForOrderStatus(row.id, 3)
+        loadingMsg.destroy()
+        if (success) {
+          message.success('模拟支付失败成功，订单已取消')
+        } else {
+          message.warning('操作已提交，但订单状态未更新，请刷新查看')
+        }
         await loadData()
       } catch {
+        loadingMsg.destroy()
         message.error('操作失败')
+      } finally {
+        processingOrderIds.value.delete(row.id)
       }
     },
   })

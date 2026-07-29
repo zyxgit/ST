@@ -4,6 +4,7 @@ using ST.Infra.EventBus.Abstractions;
 using ST.Infra.EventBus.OperationLog;
 using ST.Infra.EventBus.RabbitMQ.Extensions;
 using ST.Infra.IntegrationEvents.Orders;
+using ST.Infra.IntegrationEvents.Payment;
 using ST.Infra.Redis.Extensions;
 using ST.Infra.ReliableMessaging.Extensions;
 using ST.MS.Inventory.Application;
@@ -54,6 +55,7 @@ try
 	var eventBus = app.Services.GetRequiredService<IEventBus>();
 	eventBus.Subscribe<OrderCreatedIntegrationEvent, OrderCreatedHandler>();
 	eventBus.Subscribe<OrderCanceledIntegrationEvent, OrderCanceledHandler>();
+	eventBus.Subscribe<PaymentSucceededIntegrationEvent, InventoryPaymentSucceededHandler>();
 
 	if (app.Environment.IsDevelopment())
 	{

@@ -47,10 +47,15 @@ public class Order : AggregateRoot, ITenantEntity
 	}
 
 	/// <summary>
-	/// 标记库存已冻结。
+	/// 标记库存已冻结（幂等：已支付则忽略，兼容事件乱序到达）。
 	/// </summary>
 	public void MarkInventoryFrozen()
 	{
+		if (Status == OrderStatus.InventoryFrozen || Status == OrderStatus.Paid)
+		{
+			return;
+		}
+
 		if (Status != OrderStatus.Pending)
 		{
 			throw new InvalidOperationException($"Cannot mark inventory frozen for order in {Status} status.");
@@ -61,6 +66,7 @@ public class Order : AggregateRoot, ITenantEntity
 
 	/// <summary>
 	/// 标记已支付（幂等：已支付则忽略）。
+	/// 允许从 Pending 或 InventoryFrozen 转换到 Paid，兼容事件乱序到达场景。
 	/// </summary>
 	public void MarkPaid()
 	{
@@ -69,7 +75,7 @@ public class Order : AggregateRoot, ITenantEntity
 			return;
 		}
 
-		if (Status != OrderStatus.InventoryFrozen)
+		if (Status is not (OrderStatus.Pending or OrderStatus.InventoryFrozen))
 		{
 			throw new InvalidOperationException($"Cannot mark paid for order in {Status} status.");
 		}

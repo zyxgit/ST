@@ -51,7 +51,7 @@ public class PaymentsController : AbstractControllerBase
 	}
 
 	/// <summary>
-	/// 查询支付记录
+	/// 查询支付记录（按订单 ID）
 	/// </summary>
 	[HttpGet("{orderId:guid}")]
 	public async Task<ActionResult<PaymentDto>> GetPayment(Guid orderId, CancellationToken ct)
@@ -61,6 +61,22 @@ public class PaymentsController : AbstractControllerBase
 		if (payment is null)
 		{
 			return NotFound(new { Error = "支付记录不存在", OrderId = orderId });
+		}
+
+		return Ok(payment);
+	}
+
+	/// <summary>
+	/// 查询支付记录（按订单号）
+	/// </summary>
+	[HttpGet("by-order-no/{orderNo}")]
+	public async Task<ActionResult<PaymentDto>> GetPaymentByOrderNo(string orderNo, CancellationToken ct)
+	{
+		var payment = await _paymentService.GetPaymentByOrderNoAsync(orderNo, ct);
+
+		if (payment is null)
+		{
+			return NotFound(new { Error = "支付记录不存在", OrderNo = orderNo });
 		}
 
 		return Ok(payment);

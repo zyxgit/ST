@@ -15,7 +15,7 @@ namespace ST.MS.Order.Application.Services;
 /// 处理 PaymentFailedIntegrationEvent。
 /// 取消订单并触发库存释放（发布 OrderCanceledIntegrationEvent）。
 /// </summary>
-public class PaymentFailedHandler : IIntegrationEventHandler<PaymentFailedIntegrationEvent>
+public class PaymentFailedHandler : IIntegrationEventHandler<PaymentFailedIntegrationEvent>, ITransientDependency
 {
 	private readonly OrderDbContext _dbContext;
 	private readonly IInboxStore _inboxStore;

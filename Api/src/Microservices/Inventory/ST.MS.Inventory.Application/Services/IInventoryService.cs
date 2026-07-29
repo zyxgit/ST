@@ -42,4 +42,9 @@ public interface IInventoryService
 	/// 增加库存。
 	/// </summary>
 	Task<SkuDto> IncreaseStockAsync(Guid skuId, int quantity, CancellationToken ct = default);
+
+	/// <summary>
+	/// 扣减库存。
+	/// </summary>
+	Task<SkuDto> DeductStockAsync(Guid skuId, int quantity, CancellationToken ct = default);
 }

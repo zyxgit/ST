@@ -46,7 +46,7 @@ public class PaymentService : IPaymentService, ITransientDependency
 		}
 
 		// 查找待支付记录或创建新记录
-		var payment = existing ?? new Domain.Entities.Payment(orderId, 0);
+		var payment = existing ?? new Domain.Entities.Payment(orderId, string.Empty, 0);
 		if (existing is null)
 		{
 			_dbContext.Payments.Add(payment);
@@ -98,7 +98,7 @@ public class PaymentService : IPaymentService, ITransientDependency
 			return MapToDto(existing);
 		}
 
-		var payment = existing ?? new Domain.Entities.Payment(orderId, 0);
+		var payment = existing ?? new Domain.Entities.Payment(orderId, string.Empty, 0);
 		if (existing is null)
 		{
 			_dbContext.Payments.Add(payment);
@@ -146,12 +146,21 @@ public class PaymentService : IPaymentService, ITransientDependency
 		return payment is null ? null : MapToDto(payment);
 	}
 
+	public async Task<PaymentDto?> GetPaymentByOrderNoAsync(string orderNo, CancellationToken ct = default)
+	{
+		var payment = await _dbContext.Payments
+			.FirstOrDefaultAsync(p => p.OrderNo == orderNo, ct);
+
+		return payment is null ? null : MapToDto(payment);
+	}
+
 	private static PaymentDto MapToDto(Domain.Entities.Payment payment)
 	{
 		return new PaymentDto
 		{
 			Id = payment.Id,
 			OrderId = payment.OrderId,
+			OrderNo = payment.OrderNo,
 			Amount = payment.Amount,
 			Status = payment.Status.ToString(),
 			FailureReason = payment.FailureReason,

@@ -37,11 +37,11 @@ public sealed class InventoryRedisSyncService : IHostedService
 		{
 			await inventoryRedis.SyncStockAsync(sku.SkuId, sku.Available, sku.Frozen, sku.Sold, ct);
 			_logger.LogInformation(
-				"Synced SKU to Redis. SkuId={SkuId} Available={Available} Frozen={Frozen} Sold={Sold}",
+				"SKU 同步到 Redis，SkuId={SkuId} 可用={Available} 冻结={Frozen} 已售={Sold}",
 				sku.SkuId, sku.Available, sku.Frozen, sku.Sold);
 		}
 
-		_logger.LogInformation("Inventory Redis sync completed. SKU count={Count}", skus.Count);
+		_logger.LogInformation("库存 Redis 同步完成，SKU 数量={Count}", skus.Count);
 	}
 
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

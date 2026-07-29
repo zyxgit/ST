@@ -13,7 +13,7 @@ namespace ST.MS.Order.Application.Services;
 /// 处理 PaymentSucceededIntegrationEvent。
 /// 更新订单状态为 Paid，完成 Saga。
 /// </summary>
-public class PaymentSucceededHandler : IIntegrationEventHandler<PaymentSucceededIntegrationEvent>
+public class PaymentSucceededHandler : IIntegrationEventHandler<PaymentSucceededIntegrationEvent>, ITransientDependency
 {
 	private readonly OrderDbContext _dbContext;
 	private readonly IInboxStore _inboxStore;
@@ -65,7 +65,7 @@ public class PaymentSucceededHandler : IIntegrationEventHandler<PaymentSucceeded
 		}
 		catch (InvalidOperationException ex)
 		{
-			// 订单处于无法支付的状态（如已取消/已失败），记录日志并标记已处理，不再重试
+			// 已取消/已失败的订单，标记已处理，不再重试
 			_logger.LogWarning(ex, "Cannot mark order as Paid, skipping. OrderId={OrderId} Status={Status}",
 				@event.OrderId, order.Status);
 			await _inboxStore.MarkAsProcessedAsync(@event.Id, Consumer, cancellationToken);

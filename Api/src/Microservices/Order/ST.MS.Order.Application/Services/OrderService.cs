@@ -126,6 +126,7 @@ public class OrderService : IOrderService, ITransientDependency
 		// RedisPreFrozen=true 告知 Inventory 服务跳过 Redis 预扣，仅做 DB 兜底
 		var integrationEvent = new OrderCreatedIntegrationEvent(
 			order.Id,
+			order.OrderNo,
 			order.UserId,
 			order.TotalAmount,
 			orderItems.Select(i => new OrderItemData(i.SkuId, i.ProductName, i.Quantity, i.UnitPrice)).ToList(),

@@ -13,7 +13,7 @@ namespace ST.MS.Inventory.Application.Services;
 /// 处理 OrderCanceledIntegrationEvent。
 /// 释放冻结库存，发布 InventoryReleased。
 /// </summary>
-public class OrderCanceledHandler : IIntegrationEventHandler<OrderCanceledIntegrationEvent>
+public class OrderCanceledHandler : IIntegrationEventHandler<OrderCanceledIntegrationEvent>, ITransientDependency
 {
 	private readonly InventoryDbContext _dbContext;
 	private readonly IInboxStore _inboxStore;
@@ -44,7 +44,7 @@ public class OrderCanceledHandler : IIntegrationEventHandler<OrderCanceledIntegr
 		// 幂等检查
 		if (await _inboxStore.ExistsAsync(@event.Id, Consumer, cancellationToken))
 		{
-			_logger.LogDebug("OrderCanceled event already processed. EventId={EventId}", @event.Id);
+			_logger.LogDebug("OrderCanceled 事件已处理，跳过。EventId={EventId}", @event.Id);
 			return;
 		}
 
@@ -78,6 +78,6 @@ public class OrderCanceledHandler : IIntegrationEventHandler<OrderCanceledIntegr
 		// 同一事务保存
 		await _dbContext.SaveChangesAsync(cancellationToken);
 
-		_logger.LogInformation("Inventory released for OrderId={OrderId}", @event.OrderId);
+		_logger.LogInformation("库存释放成功，OrderId={OrderId}", @event.OrderId);
 	}
 }

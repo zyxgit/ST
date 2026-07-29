@@ -12,6 +12,9 @@ public class Payment : AggregateRoot, ITenantEntity, IConcurrency
 	/// <summary>关联的订单 ID</summary>
 	public Guid OrderId { get; set; }
 
+	/// <summary>订单号</summary>
+	public string OrderNo { get; set; } = string.Empty;
+
 	/// <summary>支付金额</summary>
 	public decimal Amount { get; set; }
 
@@ -31,10 +34,11 @@ public class Payment : AggregateRoot, ITenantEntity, IConcurrency
 	{
 	}
 
-	public Payment(Guid orderId, decimal amount)
+	public Payment(Guid orderId, string orderNo, decimal amount)
 	{
 		Id = Guid.CreateVersion7();
 		OrderId = orderId;
+		OrderNo = orderNo;
 		Amount = amount;
 		Status = PaymentStatus.Pending;
 	}

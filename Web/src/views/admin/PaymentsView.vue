@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { DataTableColumns } from 'naive-ui'
-import { NButton, NCard, NDataTable, NInput, NTag } from 'naive-ui'
+import { NButton, NCard, NDataTable, NInput, NSpace, NTag } from 'naive-ui'
 import { computed, h, ref } from 'vue'
 
 import PageSection from '@/components/common/PageSection.vue'
-import { getPayment } from '@/api/payment'
+import { getPayment, getPaymentByOrderNo } from '@/api/payment'
 import { PermissionCode } from '@/constants/permissions'
 import { formatDateTime } from '@/lib/dayjs'
 import { useAuthStore } from '@/stores/auth'
@@ -21,9 +21,12 @@ const orderId = ref('')
 const payment = ref<PaymentDto | null>(null)
 const notFound = ref(false)
 
+const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 const columns: DataTableColumns<PaymentDto> = [
   { title: '支付 ID', key: 'id', minWidth: 280, ellipsis: { tooltip: true } },
   { title: '订单 ID', key: 'orderId', minWidth: 280, ellipsis: { tooltip: true } },
+  { title: '订单号', key: 'orderNo', minWidth: 200, ellipsis: { tooltip: true } },
   {
     title: '金额',
     key: 'amount',
@@ -60,8 +63,9 @@ const columns: DataTableColumns<PaymentDto> = [
 ]
 
 async function handleSearch() {
-  if (!orderId.value.trim()) {
-    message.warning('请输入订单 ID')
+  const input = orderId.value.trim()
+  if (!input) {
+    message.warning('请输入订单号或订单 ID')
     return
   }
 
@@ -70,7 +74,9 @@ async function handleSearch() {
   payment.value = null
 
   try {
-    payment.value = await getPayment(orderId.value.trim())
+    payment.value = guidRegex.test(input)
+      ? await getPayment(input)
+      : await getPaymentByOrderNo(input)
   } catch {
     notFound.value = true
   } finally {
@@ -80,14 +86,14 @@ async function handleSearch() {
 </script>
 
 <template>
-  <page-section title="支付记录" description="按订单 ID 查询支付记录，查看支付状态和详情。">
+  <page-section title="支付记录" description="按订单号或订单 ID 查询支付记录，查看支付状态和详情。">
     <template v-if="canQuery">
       <n-card class="page-card" :bordered="false">
         <n-space>
           <n-input
             v-model:value="orderId"
             clearable
-            placeholder="输入订单 ID 查询"
+            placeholder="输入订单号或订单 ID"
             style="width: 360px"
             @keyup.enter="handleSearch"
           />

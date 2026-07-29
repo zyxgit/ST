@@ -14,7 +14,7 @@ namespace ST.MS.Inventory.Application.Services;
 /// 冻结库存，成功则发布 InventoryFrozen，失败则发布 InventoryFreezeFailed。
 /// 使用 Inbox 幂等 + Outbox 可靠发布，与冻结操作同一事务。
 /// </summary>
-public class OrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrationEvent>
+public class OrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrationEvent>, ITransientDependency
 {
 	private readonly InventoryDbContext _dbContext;
 	private readonly IInboxStore _inboxStore;
@@ -45,7 +45,7 @@ public class OrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrat
 		// 幂等检查
 		if (await _inboxStore.ExistsAsync(@event.Id, Consumer, cancellationToken))
 		{
-			_logger.LogDebug("OrderCreated event already processed. EventId={EventId}", @event.Id);
+			_logger.LogDebug("OrderCreated 事件已处理，跳过。EventId={EventId}", @event.Id);
 			return;
 		}
 
@@ -59,15 +59,11 @@ public class OrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrat
 		});
 
 		// 冻结库存（如果 Order Service 已完成 Redis 预扣，则跳过 Redis 层）
-		var sw = System.Diagnostics.Stopwatch.StartNew();
 		var success = await _inventoryService.FreezeInventoryAsync(
 			@event.OrderId, @event.Items, skipRedisFreeze: @event.RedisPreFrozen, cancellationToken);
-		sw.Stop();
-		InventoryMetrics.FreezeDurationMs.Record(sw.Elapsed.TotalMilliseconds);
 
 		if (success)
 		{
-			InventoryMetrics.FreezeSuccess.Add(1);
 			// 冻结成功 → 发布 InventoryFrozen
 			var frozenEvent = new InventoryFrozenIntegrationEvent(@event.OrderId);
 			_outboxStore.Add(new OutboxMessage
@@ -79,11 +75,10 @@ public class OrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrat
 				OccurredAtUtc = DateTime.UtcNow
 			});
 
-			_logger.LogInformation("Inventory frozen for OrderId={OrderId}", @event.OrderId);
+			_logger.LogInformation("库存冻结成功，OrderId={OrderId}", @event.OrderId);
 		}
 		else
 		{
-			InventoryMetrics.FreezeFailed.Add(1);
 			// 冻结失败 → 发布 InventoryFreezeFailed
 			var failedEvent = new InventoryFreezeFailedIntegrationEvent(@event.OrderId, "库存不足");
 			_outboxStore.Add(new OutboxMessage
@@ -95,7 +90,7 @@ public class OrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrat
 				OccurredAtUtc = DateTime.UtcNow
 			});
 
-			_logger.LogWarning("Inventory freeze failed for OrderId={OrderId}", @event.OrderId);
+			_logger.LogWarning("库存冻结失败，OrderId={OrderId}", @event.OrderId);
 		}
 
 		// 标记 Inbox 已处理

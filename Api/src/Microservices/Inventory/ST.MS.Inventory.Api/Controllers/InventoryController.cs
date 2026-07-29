@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using ST.Infra.Redis.Inventory;
 using ST.MS.Inventory.Application.Dto;
 using ST.MS.Inventory.Application.Services;
+using ST.MS.Inventory.Infra.DbContext;
 using ST.Shared.WebApi.Controller;
 
 namespace ST.MS.Inventory.Api.Controllers;
@@ -16,9 +19,14 @@ public class InventoryController : AbstractControllerBase
 	private readonly IInventoryService _inventoryService;
 	private readonly ILogger<InventoryController> _logger;
 
-	public InventoryController(IInventoryService inventoryService, ILogger<InventoryController> logger)
+	private readonly InventoryDbContext _dbContext;
+	private readonly IInventoryRedisService _inventoryRedis;
+
+	public InventoryController(IInventoryService inventoryService, InventoryDbContext dbContext, IInventoryRedisService inventoryRedis, ILogger<InventoryController> logger)
 	{
 		_inventoryService = inventoryService;
+		_dbContext = dbContext;
+		_inventoryRedis = inventoryRedis;
 		_logger = logger;
 	}
 
@@ -58,6 +66,21 @@ public class InventoryController : AbstractControllerBase
 	}
 
 	/// <summary>
+	/// 扣减库存
+	/// </summary>
+	[HttpPost("{skuId:guid}/stock/deduct")]
+	public async Task<ActionResult<SkuDto>> DeductStock(Guid skuId, [FromQuery] int quantity, CancellationToken ct)
+	{
+		if (quantity <= 0)
+		{
+			return BadRequest(new { Error = "数量必须大于 0" });
+		}
+
+		var sku = await _inventoryService.DeductStockAsync(skuId, quantity, ct);
+		return Ok(sku);
+	}
+
+	/// <summary>
 	/// 查询库存
 	/// </summary>
 	[HttpGet("{skuId:guid}/stock")]
@@ -71,5 +94,39 @@ public class InventoryController : AbstractControllerBase
 		}
 
 		return Ok(sku);
+	}
+
+	/// <summary>
+	/// 诊断：同时查 DB 和 Redis 库存，对比数据一致性
+	/// </summary>
+	[HttpGet("debug/db-stock")]
+	public async Task<ActionResult> GetDbStock(CancellationToken ct)
+	{
+		var skus = await _dbContext.Skus
+			.AsNoTracking()
+			.ToListAsync(ct);
+
+		var freezeRecords = await _dbContext.FreezeRecords
+			.AsNoTracking()
+			.Select(r => new { r.OrderId, r.SkuId, r.Quantity, Status = r.Status.ToString() })
+			.ToListAsync(ct);
+
+		// 同时查 Redis
+		var redisResults = new List<object>();
+		foreach (var sku in skus)
+		{
+			var redis = await _inventoryRedis.GetStockAsync(sku.SkuId, ct);
+			redisResults.Add(new
+			{
+				sku.SkuId,
+				sku.ProductName,
+				Db = new { sku.Available, sku.Frozen, sku.Sold },
+				Redis = redis.HasValue
+					? new { redis.Value.Available, redis.Value.Frozen, redis.Value.Sold }
+					: null
+			});
+		}
+
+		return Ok(new { StockComparison = redisResults, FreezeRecords = freezeRecords });
 	}
 }
