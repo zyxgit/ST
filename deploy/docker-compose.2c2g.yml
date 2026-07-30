@@ -20,7 +20,7 @@ services:
   # Infrastructure
   # ──────────────────────────────────────────────
   postgres:
-    image: postgres:17
+    image: postgres:18.3
     command: >
       postgres
         -c shared_buffers=128MB
@@ -55,7 +55,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7
+    image: redis:8.6.o
     command:
       - --requirepass
       - ${REDIS_PASSWORD}
