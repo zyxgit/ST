@@ -1,0 +1,424 @@
+# ──────────────────────────────────────────────────────────────
+# ST 轻量部署配置 — 2C2G 服务器专用
+#
+# 相比完整版 docker-compose.yml 的变更：
+#   ✂️ 移除可观测性栈 (alloy / loki / prometheus / grafana)
+#   ✂️ 移除 st-ms-test-api (示例服务)
+#   🔧 PostgreSQL 调低 shared_buffers / max_connections
+#   🔧 Redis 关闭持久化 + 限制 maxmemory
+#   🔧 RabbitMQ 使用精简镜像 (无 management 插件)
+#   🔧 每个 .NET 服务限制内存 128M
+#   🔧 移除所有 OTEL 配置 (无 Alloy 接收端)
+#   🔧 日志限制 5m + 1 份，防磁盘爆满
+#
+# 启动方式:
+#   docker compose -f docker-compose.2c2g.yml --env-file .env up -d
+# ──────────────────────────────────────────────────────────────
+
+services:
+  # ──────────────────────────────────────────────
+  # Infrastructure
+  # ──────────────────────────────────────────────
+  postgres:
+    image: postgres:17
+    command: >
+      postgres
+        -c shared_buffers=128MB
+        -c work_mem=4MB
+        -c maintenance_work_mem=64MB
+        -c max_connections=50
+        -c effective_cache_size=512MB
+        -c wal_buffers=4MB
+    environment:
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+    ports:
+      - "${POSTGRES_HOST_PORT:-25432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - st-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "1"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    command:
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --maxmemory
+      - "100mb"
+      - --maxmemory-policy
+      - allkeys-lru
+    ports:
+      - "${REDIS_HOST_PORT:-26379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - st-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "1"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--raw", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:4-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITUSER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITPASSWORD}
+    ports:
+      - "${RABBITMQ_AMQP_HOST_PORT:-25672}:5672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - st-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "1"
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ──────────────────────────────────────────────
+  # Backend Microservices
+  # ──────────────────────────────────────────────
+  st-ms-identity-api:
+    image: ghcr.io/zyxgit/st/st-ms-identity-api:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_identity
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
+      ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "${APP_IS_DATA_SEED:-false}"
+      Jwt__SigningKey: ${JWTSIGNINGKEY}
+    ports:
+      - "${IDENTITY_HOST_PORT:-27127}:8080"
+    volumes:
+      - identity-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "1"
+
+  st-ms-operationlog-api:
+    image: ghcr.io/zyxgit/st/st-ms-operationlog-api:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_operationlog
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+    ports:
+      - "${OPERATIONLOG_HOST_PORT:-21001}:8080"
+    volumes:
+      - operationlog-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "1"
+
+  st-ms-operationlog-consumer:
+    image: ghcr.io/zyxgit/st/st-ms-operationlog-consumer:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_operationlog
+      ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
+    volumes:
+      - operationlog-consumer-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "1"
+
+  st-ms-fileupload-api:
+    image: ghcr.io/zyxgit/st/st-ms-fileupload-api:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_fileupload
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "${APP_IS_DATA_SEED:-false}"
+      FileStorage__Type: Local
+      FileStorage__UploadRoot: /app/uploads
+    ports:
+      - "${FILEUPLOAD_HOST_PORT:-27250}:8080"
+    volumes:
+      - fileupload-logs:/app/logs
+      - fileupload-uploads:/app/uploads
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "1"
+
+  st-ms-order-api:
+    image: ghcr.io/zyxgit/st/st-ms-order-api:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_order
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
+      ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "${APP_IS_DATA_SEED:-false}"
+    ports:
+      - "${ORDER_HOST_PORT:-25090}:8080"
+    volumes:
+      - order-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "1"
+
+  st-ms-inventory-api:
+    image: ghcr.io/zyxgit/st/st-ms-inventory-api:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_inventory
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
+      ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "${APP_IS_DATA_SEED:-false}"
+    ports:
+      - "${INVENTORY_HOST_PORT:-25091}:8080"
+    volumes:
+      - inventory-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "1"
+
+  st-ms-payment-api:
+    image: ghcr.io/zyxgit/st/st-ms-payment-api:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password=${PGPASSWORD};Database=st_payment
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
+      ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
+      App__IsCodeFirst: "false"
+      App__IsCreateDatabase: "false"
+      App__IsDataSeed: "${APP_IS_DATA_SEED:-false}"
+    ports:
+      - "${PAYMENT_HOST_PORT:-25092}:8080"
+    volumes:
+      - payment-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "1"
+
+  st-gateway:
+    image: ghcr.io/zyxgit/st/st-gateway:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      HTTP_PORTS: 8080
+      DownstreamServices__Identity__Address: http://st-ms-identity-api:8080
+      DownstreamServices__OperationLog__Address: http://st-ms-operationlog-api:8080
+      DownstreamServices__FileUpload__Address: http://st-ms-fileupload-api:8080
+      DownstreamServices__Order__Address: http://st-ms-order-api:8080
+      DownstreamServices__Inventory__Address: http://st-ms-inventory-api:8080
+      DownstreamServices__Payment__Address: http://st-ms-payment-api:8080
+      Cors__AllowedOrigins__0: http://localhost:280
+    ports:
+      - "${GATEWAY_HOST_PORT:-25000}:8080"
+    volumes:
+      - gateway-logs:/app/logs
+    networks:
+      - st-network
+    depends_on:
+      - st-ms-identity-api
+      - st-ms-operationlog-api
+      - st-ms-fileupload-api
+      - st-ms-order-api
+      - st-ms-inventory-api
+      - st-ms-payment-api
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "1"
+
+  # ──────────────────────────────────────────────
+  # Frontend
+  # ──────────────────────────────────────────────
+  st-web:
+    image: ghcr.io/zyxgit/st/st-web:latest
+    ports:
+      - "${WEB_HOST_PORT:-280}:80"
+    networks:
+      - st-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "1"
+
+networks:
+  st-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:
+  identity-logs:
+  operationlog-logs:
+  operationlog-consumer-logs:
+  fileupload-logs:
+  fileupload-uploads:
+  order-logs:
+  inventory-logs:
+  payment-logs:
+  gateway-logs:
