@@ -368,12 +368,24 @@ services:
     networks:
       - st-network
     depends_on:
-      - st-ms-identity-api
-      - st-ms-operationlog-api
-      - st-ms-fileupload-api
-      - st-ms-order-api
-      - st-ms-inventory-api
-      - st-ms-payment-api
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      st-ms-identity-api:
+        condition: service_started
+      st-ms-operationlog-api:
+        condition: service_started
+      st-ms-fileupload-api:
+        condition: service_started
+      st-ms-order-api:
+        condition: service_started
+      st-ms-inventory-api:
+        condition: service_started
+      st-ms-payment-api:
+        condition: service_started
     restart: unless-stopped
     deploy:
       resources:
@@ -394,6 +406,13 @@ services:
       - "${WEB_HOST_PORT:-280}:80"
     networks:
       - st-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
     deploy:
       resources:
