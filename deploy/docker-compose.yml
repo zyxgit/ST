@@ -3,7 +3,7 @@ services:
   # Infrastructure
   # ──────────────────────────────────────────────
   postgres:
-    image: postgres:18.3
+    image: postgres:18.2
     environment:
       POSTGRES_USER: ${PGUSER}
       POSTGRES_PASSWORD: ${PGPASSWORD}
