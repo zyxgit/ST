@@ -9,7 +9,7 @@
 *.targets text eol=crlf
 *.json   text eol=crlf
 *.xml    text eol=crlf
-*.yml    text eol=crlf
+*.yml    text eol=lf
 *.yaml   text eol=crlf
 *.md     text eol=crlf
 
@@ -30,9 +30,10 @@
 *.html   text eol=crlf
 *.htm    text eol=crlf
 
-# Shell / Linux 脚本强制 LF（CI、WSL、部署脚本）
+# Shell / Linux 脚本 & 环境变量强制 LF（CI、WSL、部署脚本）
 *.sh     text eol=lf
 *.bash   text eol=lf
+*.env    text eol=lf
 
 # 二进制文件（避免被修改）
 *.png binary
