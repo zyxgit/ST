@@ -112,7 +112,7 @@ ORDER_HOST_PORT=25090
 INVENTORY_HOST_PORT=25091
 PAYMENT_HOST_PORT=25092
 GATEWAY_HOST_PORT=25000
-WEB_HOST_PORT=280
+WEB_HOST_PORT=28080
 ```
 
 ---
@@ -191,49 +191,58 @@ dotnet ef --version
 ```bash
 cd ~/st
 
+# 加载 .env 环境变量
+set -a && source ~/st/deploy/.env && set +a
+
+# 强制使用 Production 环境，避免读取 appsettings.Development.json
+export ASPNETCORE_ENVIRONMENT=Production
+
+# 还原 NuGet 包
+dotnet restore Api/src/ST.slnx
+
 # 构造连接字符串前缀
 CONN_PREFIX="Host=127.0.0.1;Port=25432;Username=${PGUSER};Password=${PGPASSWORD}"
 
 # ── Identity 数据库 ──
 export Database__ConnectionString="${CONN_PREFIX};Database=st_identity"
 dotnet ef database update \
-  --project Api/src/Infrastructures/ST.Infra.PostgreSQL \
-  --startup-project Api/src/Microservices/Identity/ST.Identity.API \
+  --project Api/src/Microservices/Identity/ST.MS.Identity.Infra \
+  --startup-project Api/src/Microservices/Identity/ST.MS.Identity.Api \
   --configuration Release
 
 # ── OperationLog 数据库 ──
 export Database__ConnectionString="${CONN_PREFIX};Database=st_operationlog"
 dotnet ef database update \
-  --project Api/src/Infrastructures/ST.Infra.PostgreSQL \
-  --startup-project Api/src/Microservices/OperationLog/ST.OperationLog.API \
+  --project Api/src/Microservices/OperationLog/ST.MS.OperationLog.Infra \
+  --startup-project Api/src/Microservices/OperationLog/ST.MS.OperationLog.Api \
   --configuration Release
 
 # ── FileUpload 数据库 ──
 export Database__ConnectionString="${CONN_PREFIX};Database=st_fileupload"
 dotnet ef database update \
-  --project Api/src/Infrastructures/ST.Infra.PostgreSQL \
-  --startup-project Api/src/Microservices/FileUpload/ST.FileUpload.API \
+  --project Api/src/Microservices/FileUpload/ST.MS.FileUpload.Infra \
+  --startup-project Api/src/Microservices/FileUpload/ST.MS.FileUpload.Api \
   --configuration Release
 
 # ── Order 数据库 ──
 export Database__ConnectionString="${CONN_PREFIX};Database=st_order"
 dotnet ef database update \
-  --project Api/src/Infrastructures/ST.Infra.PostgreSQL \
-  --startup-project Api/src/Microservices/Order/ST.Order.API \
+  --project Api/src/Microservices/Order/ST.MS.Order.Infra \
+  --startup-project Api/src/Microservices/Order/ST.MS.Order.Api \
   --configuration Release
 
 # ── Inventory 数据库 ──
 export Database__ConnectionString="${CONN_PREFIX};Database=st_inventory"
 dotnet ef database update \
-  --project Api/src/Infrastructures/ST.Infra.PostgreSQL \
-  --startup-project Api/src/Microservices/Inventory/ST.Inventory.API \
+  --project Api/src/Microservices/Inventory/ST.MS.Inventory.Infra \
+  --startup-project Api/src/Microservices/Inventory/ST.MS.Inventory.Api \
   --configuration Release
 
 # ── Payment 数据库 ──
 export Database__ConnectionString="${CONN_PREFIX};Database=st_payment"
 dotnet ef database update \
-  --project Api/src/Infrastructures/ST.Infra.PostgreSQL \
-  --startup-project Api/src/Microservices/Payment/ST.Payment.API \
+  --project Api/src/Microservices/Payment/ST.MS.Payment.Infra \
+  --startup-project Api/src/Microservices/Payment/ST.MS.Payment.Api \
   --configuration Release
 
 # 清除临时变量
