@@ -121,7 +121,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       HTTP_PORTS: 8080
       ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password='${PGPASSWORD}';Database=st_identity
-      ConnectionStrings__cache: redis:6379,password='${REDIS_PASSWORD}'
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
       ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
       App__IsCodeFirst: "false"
       App__IsCreateDatabase: "false"
@@ -157,7 +157,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       HTTP_PORTS: 8080
       ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password='${PGPASSWORD}';Database=st_operationlog
-      ConnectionStrings__cache: redis:6379,password='${REDIS_PASSWORD}'
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
       App__IsCodeFirst: "false"
       App__IsCreateDatabase: "false"
     ports:
@@ -215,7 +215,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       HTTP_PORTS: 8080
       ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password='${PGPASSWORD}';Database=st_fileupload
-      ConnectionStrings__cache: redis:6379,password='${REDIS_PASSWORD}'
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
       App__IsCodeFirst: "false"
       App__IsCreateDatabase: "false"
       App__IsDataSeed: "${APP_IS_DATA_SEED:-false}"
@@ -250,7 +250,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       HTTP_PORTS: 8080
       ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password='${PGPASSWORD}';Database=st_order
-      ConnectionStrings__cache: redis:6379,password='${REDIS_PASSWORD}'
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
       ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
       App__IsCodeFirst: "false"
       App__IsCreateDatabase: "false"
@@ -285,7 +285,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       HTTP_PORTS: 8080
       ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password='${PGPASSWORD}';Database=st_inventory
-      ConnectionStrings__cache: redis:6379,password='${REDIS_PASSWORD}'
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
       ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
       App__IsCodeFirst: "false"
       App__IsCreateDatabase: "false"
@@ -320,7 +320,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       HTTP_PORTS: 8080
       ConnectionStrings__Default: Host=postgres;Port=5432;Username=${PGUSER};Password='${PGPASSWORD}';Database=st_payment
-      ConnectionStrings__cache: redis:6379,password='${REDIS_PASSWORD}'
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
       ConnectionStrings__rabbitmq: amqp://${RABBITUSER}:${RABBITPASSWORD}@rabbitmq:5672
       App__IsCodeFirst: "false"
       App__IsCreateDatabase: "false"
