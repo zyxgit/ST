@@ -1,0 +1,188 @@
+name: Build Docker Images
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+  schedule:
+    - cron: '0 6 * * *'    # daily at 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      push_images:
+        description: Push images to registry
+        type: boolean
+        default: true
+      tag_override:
+        description: Override image tag (defaults to git sha)
+        required: false
+      dry_run:
+        description: Dry-run mode for cleanup (print only, no delete)
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+  DOTNET_VERSION: 10.0.x
+  NODE_VERSION: 22
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Create .env and build images
+  # ──────────────────────────────────────────────
+  build-images:
+    if: github.event_name != 'schedule'
+    name: Build All Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create .env file
+        shell: bash
+        run: |
+          cat > deploy/.env << 'EOF'
+          PGUSER=${{ secrets.PGUSER }}
+          PGPASSWORD=${{ secrets.PGPASSWORD }}
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+          RABBITUSER=${{ secrets.RABBITUSER }}
+          RABBITPASSWORD=${{ secrets.RABBITPASSWORD }}
+          JWTSIGNINGKEY=${{ secrets.JWTSIGNINGKEY }}
+          POSTGRES_HOST_PORT=${{ vars.POSTGRES_HOST_PORT || '25432' }}
+          REDIS_HOST_PORT=${{ vars.REDIS_HOST_PORT || '26379' }}
+          RABBITMQ_AMQP_HOST_PORT=${{ vars.RABBITMQ_AMQP_HOST_PORT || '25672' }}
+          RABBITMQ_MGMT_HOST_PORT=${{ vars.RABBITMQ_MGMT_HOST_PORT || '25673' }}
+          IDENTITY_HOST_PORT=${{ vars.IDENTITY_HOST_PORT || '27127' }}
+          OPERATIONLOG_HOST_PORT=${{ vars.OPERATIONLOG_HOST_PORT || '21001' }}
+          FILEUPLOAD_HOST_PORT=${{ vars.FILEUPLOAD_HOST_PORT || '27250' }}
+          TEST_HOST_PORT=${{ vars.TEST_HOST_PORT || '25089' }}
+          ORDER_HOST_PORT=${{ vars.ORDER_HOST_PORT || '25090' }}
+          INVENTORY_HOST_PORT=${{ vars.INVENTORY_HOST_PORT || '25091' }}
+          PAYMENT_HOST_PORT=${{ vars.PAYMENT_HOST_PORT || '25092' }}
+          GATEWAY_HOST_PORT=${{ vars.GATEWAY_HOST_PORT || '25000' }}
+          WEB_HOST_PORT=${{ vars.WEB_HOST_PORT || '280' }}
+          APP_IS_DATA_SEED=false
+          EOF
+
+      - name: Compute image tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag_override }}" ]; then
+            echo "tag=${{ inputs.tag_override }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=dev-$(date +'%Y%m%d')-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push images
+        shell: bash
+        run: |
+          cd deploy
+          TAG="${{ steps.tag.outputs.tag }}"
+          REGISTRY="${{ env.REGISTRY }}/${{ github.repository_owner }}/st"
+
+          # 构建并推送每个服务
+          for svc in st-ms-identity-api st-ms-operationlog-api st-ms-operationlog-consumer \
+                     st-ms-fileupload-api st-ms-test-api st-ms-order-api \
+                     st-ms-inventory-api st-ms-payment-api st-gateway st-web; do
+            echo ">>> Building and pushing $svc ..."
+            docker compose -f docker-compose.yml --env-file .env build "$svc"
+            docker tag "$svc:latest" "$REGISTRY/$svc:$TAG"
+            docker tag "$svc:latest" "$REGISTRY/$svc:latest"
+            if [ "${{ inputs.push_images }}" != "false" ]; then
+              docker push "$REGISTRY/$svc:$TAG"
+              docker push "$REGISTRY/$svc:latest"
+            fi
+          done
+
+      - name: Cleanup local images
+        if: always()
+        shell: bash
+        run: |
+          docker image prune -f --filter until=24h
+
+  # ══════════════════════════════════════════════
+  # Cleanup old dev images
+  # ══════════════════════════════════════════════
+  cleanup:
+    name: Cleanup old dev images
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      contents: read
+      packages: write
+    env:
+      KEEP_COUNT: 4
+      SERVICES: '["st-ms-identity-api","st-ms-operationlog-api","st-ms-operationlog-consumer","st-ms-fileupload-api","st-ms-test-api","st-ms-order-api","st-ms-inventory-api","st-ms-payment-api","st-gateway","st-web"]'
+      DRY_RUN: ${{ inputs.dry_run || false }}
+    steps:
+      - name: Cleanup dev-tagged images per service
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          KEEP=${{ env.KEEP_COUNT }}
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+
+          for SERVICE in $(echo '${{ env.SERVICES }}' | jq -r '.[]'); do
+            echo "╔══════════════════════════════════════════"
+            echo "║ Processing: ${SERVICE}"
+            echo "╚══════════════════════════════════════════"
+
+            # ── 获取所有版本（含标签），按创建时间降序 ──
+            VERSIONS=$(gh api \
+              "/repos/${OWNER}/${REPO}/packages/container/${SERVICE}/versions" \
+              --jq '[.[] | select(.metadata.container.tags | length > 0) |
+                {id: .id, tags: .metadata.container.tags, created_at: .created_at}] |
+                sort_by(.created_at) | reverse' 2>/dev/null) || {
+              echo "  [SKIP] 无法获取版本信息（包可能不存在）"
+              continue
+            }
+
+            # ── 仅保留含 "dev-" 标签的版本 ──
+            DEV_VERSIONS=$(echo "$VERSIONS" | jq '[.[] | select(.tags[] | startswith("dev-"))]')
+            TOTAL=$(echo "$DEV_VERSIONS" | jq 'length')
+            echo "  dev-* 版本数: ${TOTAL}"
+
+            if [ "$TOTAL" -le "$KEEP" ]; then
+              echo "  无需清理 (${TOTAL} ≤ ${KEEP})"
+              continue
+            fi
+
+            # ── 超出保留数的旧版本 ──
+            TO_DELETE=$(echo "$DEV_VERSIONS" | jq ".[${KEEP}:][]")
+            DELETE_COUNT=$(echo "$TO_DELETE" | jq -s 'length')
+            echo "  待删除版本: ${DELETE_COUNT}"
+
+            echo "$TO_DELETE" | jq -c '.' | while read -r ITEM; do
+              VID=$(echo "$ITEM" | jq -r '.id')
+              TAGS=$(echo "$ITEM" | jq -r '.tags | join(", ")')
+              echo "  [DELETE] ID=${VID}  tags=[${TAGS}]"
+
+              if [ "${{ env.DRY_RUN }}" = "true" ]; then
+                echo "  [DRY-RUN] 跳过实际删除"
+              else
+                gh api -X DELETE \
+                  "/repos/${OWNER}/${REPO}/packages/container/${SERVICE}/versions/${VID}" \
+                  --silent && echo "  [OK] 已删除" || echo "  [WARN] 删除失败"
+              fi
+            done
+          done
