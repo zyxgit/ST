@@ -1,4 +1,4 @@
-name: Build Docker Images And Deploy
+name: Build Docker Images
 
 on:
   push:
@@ -53,6 +53,12 @@ jobs:
             project: Microservices/FileUpload/ST.MS.FileUpload.Api/ST.MS.FileUpload.Api.csproj
           - name: st-ms-test-api
             project: Microservices/Test/ST.MS.Test.Api/ST.MS.Test.Api.csproj
+          - name: st-ms-order-api
+            project: Microservices/Order/ST.MS.Order.Api/ST.MS.Order.Api.csproj
+          - name: st-ms-inventory-api
+            project: Microservices/Inventory/ST.MS.Inventory.Api/ST.MS.Inventory.Api.csproj
+          - name: st-ms-payment-api
+            project: Microservices/Payment/ST.MS.Payment.Api/ST.MS.Payment.Api.csproj
           - name: st-gateway
             project: Microservices/Gateway/ST.Gateway/ST.Gateway.csproj
     permissions:
@@ -193,227 +199,260 @@ jobs:
 
   # ──────────────────────────────────────────────
   # ──────────────────────────────────────────────
-  # Deploy to local (self-hosted runner)
+  # Deploy to local (self-hosted runner) — 已注释，仅保留打包镜像和清理
   # ──────────────────────────────────────────────
-  deploy-local:
-    name: Deploy to Local
-    needs: [test-backend, build-backend, build-frontend]
-    if: github.ref == 'refs/heads/develop'
-    runs-on: self-hosted
-    environment: "ST Secrets"
-    permissions:
-      contents: read
-      packages: read
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            deploy
-            Api/src
-          sparse-checkout-cone-mode: false
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull latest images (parallel)
-        shell: pwsh
-        run: |
-          $services = @(
-            "st-web",
-            "st-gateway",
-            "st-ms-identity-api",
-            "st-ms-operationlog-api",
-            "st-ms-operationlog-consumer",
-            "st-ms-fileupload-api",
-            "st-ms-test-api"
-          )
-          $jobs = foreach ($svc in $services) {
-            Start-Job -ScriptBlock {
-              param($registry, $owner, $svc)
-              docker pull "${registry}/${owner}/st/${svc}:latest"
-            } -ArgumentList ${{ env.REGISTRY }}, '${{ github.repository_owner }}', $svc
-          }
-          $jobs | Receive-Job -Wait -AutoRemoveJob
-
-      - name: Create .env file
-        shell: pwsh
-        run: |
-          @'
-          PGUSER=${{ secrets.PGUSER }}
-          PGPASSWORD=${{ secrets.PGPASSWORD }}
-          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
-          RABBITUSER=${{ secrets.RABBITUSER }}
-          RABBITPASSWORD=${{ secrets.RABBITPASSWORD }}
-          JWTSIGNINGKEY=${{ secrets.JWTSIGNINGKEY }}
-          POSTGRES_HOST_PORT=${{ vars.POSTGRES_HOST_PORT || '25432' }}
-          REDIS_HOST_PORT=${{ vars.REDIS_HOST_PORT || '26379' }}
-          RABBITMQ_AMQP_HOST_PORT=${{ vars.RABBITMQ_AMQP_HOST_PORT || '25672' }}
-          RABBITMQ_MGMT_HOST_PORT=${{ vars.RABBITMQ_MGMT_HOST_PORT || '25673' }}
-          IDENTITY_HOST_PORT=${{ vars.IDENTITY_HOST_PORT || '27127' }}
-          OPERATIONLOG_HOST_PORT=${{ vars.OPERATIONLOG_HOST_PORT || '21001' }}
-          FILEUPLOAD_HOST_PORT=${{ vars.FILEUPLOAD_HOST_PORT || '27250' }}
-          TEST_HOST_PORT=${{ vars.TEST_HOST_PORT || '25089' }}
-          GATEWAY_HOST_PORT=${{ vars.GATEWAY_HOST_PORT || '25000' }}
-          WEB_HOST_PORT=${{ vars.WEB_HOST_PORT || '280' }}
-          APP_IS_DATA_SEED=false
-          '@ | Out-File -FilePath deploy/.env -Encoding utf8
-
-      - name: Restart service containers (keep infra running)
-        run: |
-          docker compose -p st -f deploy/docker-compose.yml --env-file deploy/.env up -d --pull always --force-recreate
-          docker image prune -f --filter until=24h
-
-      # ──────────────────────────────────────────────
-      # DB migrations (after containers are up)
-      # ──────────────────────────────────────────────
-
-      - name: Wait for PostgreSQL to be ready
-        shell: powershell
-        run: |
-          $dbPort = "${{ vars.POSTGRES_HOST_PORT || '25432' }}"
-          $maxRetries = 30
-          $retryDelay = 2
-          for ($i = 0; $i -lt $maxRetries; $i++) {
-            try {
-              $tcp = New-Object System.Net.Sockets.TcpClient
-              $tcp.Connect("localhost", $dbPort)
-              $tcp.Close()
-              Write-Host "PostgreSQL is ready!"
-              break
-            } catch {
-              Write-Host "Waiting for PostgreSQL (attempt $($i+1)/$maxRetries)..."
-              if ($i -eq $maxRetries - 1) { throw "PostgreSQL not available after $($maxRetries * $retryDelay) seconds" }
-              Start-Sleep -Seconds $retryDelay
-            }
-          }
-
-
-      - name: Check existing .NET SDK
-        shell: powershell
-        run: |
-          $dotnetPath = "${{ github.workspace }}/.dotnet/dotnet.exe"
-          if (Test-Path $dotnetPath) {
-            $ver = & $dotnetPath --version
-            if ($ver -match '^10.') {
-              Add-Content -Path $env:GITHUB_ENV -Value "DOTNET_EXISTS=true" -Encoding utf8
-              Add-Content -Path $env:GITHUB_PATH -Value "${{ github.workspace }}/.dotnet" -Encoding utf8
-              Write-Host ".NET SDK $ver already installed (from previous run), skipping setup"
-            }
-          } else {
-            Write-Host ".NET SDK not cached, will install via setup-dotnet"
-          }
-      - name: Setup .NET SDK for EF migrations
-        env:
-          DOTNET_INSTALL_DIR: ${{ github.workspace }}/.dotnet
-        if: env.DOTNET_EXISTS != 'true'
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Install dotnet-ef (local)
-        shell: powershell
-        run: |
-          dotnet tool install dotnet-ef --tool-path ${{ github.workspace }}/.dotnet-tools
-
-      - name: Run EF Core migrations
-        shell: powershell
-        run: |
-          $env:PATH = "${{ github.workspace }}/.dotnet-tools;$env:PATH"
-          # 只 restore 需要迁移的项目（Infra + Startup），避免 restore 整个 solution
-          $restoreProjects = @(
-            "Api/src/Microservices/Identity/ST.MS.Identity.Infra/ST.MS.Identity.Infra.csproj",
-            "Api/src/Microservices/Identity/ST.MS.Identity.Api/ST.MS.Identity.Api.csproj",
-            "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Infra/ST.MS.OperationLog.Infra.csproj",
-            "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Api/ST.MS.OperationLog.Api.csproj",
-            "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Infra/ST.MS.FileUpload.Infra.csproj",
-            "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Api/ST.MS.FileUpload.Api.csproj",
-            "Api/src/Microservices/Test/ST.MS.Test.Infra/ST.MS.Test.Infra.csproj",
-            "Api/src/Microservices/Test/ST.MS.Test.Api/ST.MS.Test.Api.csproj"
-          )
-          $restoreProjects | ForEach-Object {
-            dotnet restore $_ 2>&1 | Out-Null
-          }
-          $dbHost = "localhost"
-          $dbPort = "${{ vars.POSTGRES_HOST_PORT || '25432' }}"
-          $dbUser = "${{ secrets.PGUSER }}"
-          $dbPassword = "${{ secrets.PGPASSWORD }}"
-
-          $migrations = @(
-            @{
-              Name = "Identity"
-              Project = "Api/src/Microservices/Identity/ST.MS.Identity.Infra/ST.MS.Identity.Infra.csproj"
-              Startup = "Api/src/Microservices/Identity/ST.MS.Identity.Api/ST.MS.Identity.Api.csproj"
-              DbName = "${{ vars.IDENTITY_DB_NAME || 'st_identity' }}"
-            },
-            @{
-              Name = "OperationLog"
-              Project = "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Infra/ST.MS.OperationLog.Infra.csproj"
-              Startup = "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Api/ST.MS.OperationLog.Api.csproj"
-              DbName = "${{ vars.OPERATIONLOG_DB_NAME || 'st_operationlog' }}"
-            },
-            @{
-              Name = "FileUpload"
-              Project = "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Infra/ST.MS.FileUpload.Infra.csproj"
-              Startup = "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Api/ST.MS.FileUpload.Api.csproj"
-              DbName = "${{ vars.FILEUPLOAD_DB_NAME || 'st_fileupload' }}"
-            },
-            @{
-              Name = "Test"
-              Project = "Api/src/Microservices/Test/ST.MS.Test.Infra/ST.MS.Test.Infra.csproj"
-              Startup = "Api/src/Microservices/Test/ST.MS.Test.Api/ST.MS.Test.Api.csproj"
-              DbName = "${{ vars.TEST_DB_NAME || 'st_test' }}"
-            }
-          )
-
-          foreach ($m in $migrations) {
-            Write-Host "Applying migration for $($m.Name) on DB=$($m.DbName)..."
-            $env:Database__ConnectionString = "Host=$dbHost;Port=$dbPort;Username=$dbUser;Password=$dbPassword;Database=$($m.DbName)"
-            dotnet ef database update --project $m.Project --startup-project $m.Startup --configuration Release
-          }
-
-      # ── Enable data seeding, restart only app services ──
-      - name: Enable data seeding (APP_IS_DATA_SEED=true)
-        shell: powershell
-        run: |
-          (Get-Content deploy/.env) -replace 'APP_IS_DATA_SEED=false', 'APP_IS_DATA_SEED=true' | Set-Content deploy/.env
-          Write-Host "APP_IS_DATA_SEED set to true"
-
-      - name: Restart services to run seeds
-        shell: powershell
-        run: |
-          $appServices = @(
-            "st-ms-identity-api",
-            "st-ms-operationlog-api",
-            "st-ms-operationlog-consumer",
-            "st-ms-fileupload-api",
-            "st-ms-test-api",
-            "st-gateway",
-            "st-web"
-          )
-          docker compose -p st -f deploy/docker-compose.yml --env-file deploy/.env up -d --force-recreate $appServices
-
-      - name: Health check — wait for gateway
-        shell: powershell
-        run: |
-          $gatewayPort = "${{ vars.GATEWAY_HOST_PORT || '25000' }}"
-          $maxRetries = 15
-          $retryDelay = 3
-          for ($i = 0; $i -lt $maxRetries; $i++) {
-            try {
-              $response = Invoke-WebRequest -Uri "http://localhost:${gatewayPort}/" -TimeoutSec 5 -UseBasicParsing
-              Write-Host "Gateway is healthy! (HTTP $($response.StatusCode))"
-              break
-            } catch {
-              Write-Host "Waiting for gateway (attempt $($i+1)/$maxRetries)..."
-              if ($i -eq $maxRetries - 1) { throw "Gateway not available after $($maxRetries * $retryDelay) seconds" }
-              Start-Sleep -Seconds $retryDelay
-            }
-          }
+  # deploy-local:
+  #   name: Deploy to Local
+  #   needs: [test-backend, build-backend, build-frontend]
+  #   if: github.ref == 'refs/heads/develop'
+  #   runs-on: self-hosted
+  #   environment: "ST Secrets"
+  #   permissions:
+  #     contents: read
+  #     packages: read
+  #
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         sparse-checkout: |
+  #           deploy
+  #           Api/src
+  #         sparse-checkout-cone-mode: false
+  #
+  #     - name: Log in to GitHub Container Registry
+  #       uses: docker/login-action@v3
+  #       with:
+  #         registry: ${{ env.REGISTRY }}
+  #         username: ${{ github.actor }}
+  #         password: ${{ secrets.GITHUB_TOKEN }}
+  #
+  #     - name: Pull latest images (parallel)
+  #       shell: pwsh
+  #       run: |
+  #         $services = @(
+  #           "st-web",
+  #           "st-gateway",
+  #           "st-ms-identity-api",
+  #           "st-ms-operationlog-api",
+  #           "st-ms-operationlog-consumer",
+  #           "st-ms-fileupload-api",
+  #           "st-ms-test-api",
+  #           "st-ms-order-api",
+  #           "st-ms-inventory-api",
+  #           "st-ms-payment-api"
+  #         )
+  #         $jobs = foreach ($svc in $services) {
+  #           Start-Job -ScriptBlock {
+  #             param($registry, $owner, $svc)
+  #             docker pull "${registry}/${owner}/st/${svc}:latest"
+  #           } -ArgumentList ${{ env.REGISTRY }}, '${{ github.repository_owner }}', $svc
+  #         }
+  #         $jobs | Receive-Job -Wait -AutoRemoveJob
+  #
+  #     - name: Create .env file
+  #       shell: pwsh
+  #       run: |
+  #         @'
+  #         PGUSER=${{ secrets.PGUSER }}
+  #         PGPASSWORD=${{ secrets.PGPASSWORD }}
+  #         REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+  #         RABBITUSER=${{ secrets.RABBITUSER }}
+  #         RABBITPASSWORD=${{ secrets.RABBITPASSWORD }}
+  #         JWTSIGNINGKEY=${{ secrets.JWTSIGNINGKEY }}
+  #         POSTGRES_HOST_PORT=${{ vars.POSTGRES_HOST_PORT || '25432' }}
+  #         REDIS_HOST_PORT=${{ vars.REDIS_HOST_PORT || '26379' }}
+  #         RABBITMQ_AMQP_HOST_PORT=${{ vars.RABBITMQ_AMQP_HOST_PORT || '25672' }}
+  #         RABBITMQ_MGMT_HOST_PORT=${{ vars.RABBITMQ_MGMT_HOST_PORT || '25673' }}
+  #         IDENTITY_HOST_PORT=${{ vars.IDENTITY_HOST_PORT || '27127' }}
+  #         OPERATIONLOG_HOST_PORT=${{ vars.OPERATIONLOG_HOST_PORT || '21001' }}
+  #         FILEUPLOAD_HOST_PORT=${{ vars.FILEUPLOAD_HOST_PORT || '27250' }}
+  #         TEST_HOST_PORT=${{ vars.TEST_HOST_PORT || '25089' }}
+  #         ORDER_HOST_PORT=${{ vars.ORDER_HOST_PORT || '25090' }}
+  #         INVENTORY_HOST_PORT=${{ vars.INVENTORY_HOST_PORT || '25091' }}
+  #         PAYMENT_HOST_PORT=${{ vars.PAYMENT_HOST_PORT || '25092' }}
+  #         GATEWAY_HOST_PORT=${{ vars.GATEWAY_HOST_PORT || '25000' }}
+  #         WEB_HOST_PORT=${{ vars.WEB_HOST_PORT || '280' }}
+  #         APP_IS_DATA_SEED=false
+  #         '@ | Out-File -FilePath deploy/.env -Encoding utf8
+  #
+  #     - name: Restart service containers (keep infra running)
+  #       run: |
+  #         docker compose -p st -f deploy/docker-compose.yml --env-file deploy/.env up -d --pull always --force-recreate
+  #         docker image prune -f --filter until=24h
+  #
+  #     # ──────────────────────────────────────────────
+  #     # DB migrations (after containers are up)
+  #     # ──────────────────────────────────────────────
+  #
+  #     - name: Wait for PostgreSQL to be ready
+  #       shell: powershell
+  #       run: |
+  #         $dbPort = "${{ vars.POSTGRES_HOST_PORT || '25432' }}"
+  #         $maxRetries = 30
+  #         $retryDelay = 2
+  #         for ($i = 0; $i -lt $maxRetries; $i++) {
+  #           try {
+  #             $tcp = New-Object System.Net.Sockets.TcpClient
+  #             $tcp.Connect("localhost", $dbPort)
+  #             $tcp.Close()
+  #             Write-Host "PostgreSQL is ready!"
+  #             break
+  #           } catch {
+  #             Write-Host "Waiting for PostgreSQL (attempt $($i+1)/$maxRetries)..."
+  #             if ($i -eq $maxRetries - 1) { throw "PostgreSQL not available after $($maxRetries * $retryDelay) seconds" }
+  #             Start-Sleep -Seconds $retryDelay
+  #           }
+  #         }
+  #
+  #
+  #     - name: Check existing .NET SDK
+  #       shell: powershell
+  #       run: |
+  #         $dotnetPath = "${{ github.workspace }}/.dotnet/dotnet.exe"
+  #         if (Test-Path $dotnetPath) {
+  #           $ver = & $dotnetPath --version
+  #           if ($ver -match '^10.') {
+  #             Add-Content -Path $env:GITHUB_ENV -Value "DOTNET_EXISTS=true" -Encoding utf8
+  #             Add-Content -Path $env:GITHUB_PATH -Value "${{ github.workspace }}/.dotnet" -Encoding utf8
+  #             Write-Host ".NET SDK $ver already installed (from previous run), skipping setup"
+  #           }
+  #         } else {
+  #           Write-Host ".NET SDK not cached, will install via setup-dotnet"
+  #         }
+  #     - name: Setup .NET SDK for EF migrations
+  #       env:
+  #         DOTNET_INSTALL_DIR: ${{ github.workspace }}/.dotnet
+  #       if: env.DOTNET_EXISTS != 'true'
+  #       uses: actions/setup-dotnet@v4
+  #       with:
+  #         dotnet-version: ${{ env.DOTNET_VERSION }}
+  #
+  #     - name: Install dotnet-ef (local)
+  #       shell: powershell
+  #       run: |
+  #         dotnet tool install dotnet-ef --tool-path ${{ github.workspace }}/.dotnet-tools
+  #
+  #     - name: Run EF Core migrations
+  #       shell: powershell
+  #       run: |
+  #         $env:PATH = "${{ github.workspace }}/.dotnet-tools;$env:PATH"
+  #         # 只 restore 需要迁移的项目（Infra + Startup），避免 restore 整个 solution
+  #         $restoreProjects = @(
+  #           "Api/src/Microservices/Identity/ST.MS.Identity.Infra/ST.MS.Identity.Infra.csproj",
+  #           "Api/src/Microservices/Identity/ST.MS.Identity.Api/ST.MS.Identity.Api.csproj",
+  #           "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Infra/ST.MS.OperationLog.Infra.csproj",
+  #           "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Api/ST.MS.OperationLog.Api.csproj",
+  #           "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Infra/ST.MS.FileUpload.Infra.csproj",
+  #           "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Api/ST.MS.FileUpload.Api.csproj",
+  #           "Api/src/Microservices/Order/ST.MS.Order.Infra/ST.MS.Order.Infra.csproj",
+  #           "Api/src/Microservices/Order/ST.MS.Order.Api/ST.MS.Order.Api.csproj",
+  #           "Api/src/Microservices/Inventory/ST.MS.Inventory.Infra/ST.MS.Inventory.Infra.csproj",
+  #           "Api/src/Microservices/Inventory/ST.MS.Inventory.Api/ST.MS.Inventory.Api.csproj",
+  #           "Api/src/Microservices/Payment/ST.MS.Payment.Infra/ST.MS.Payment.Infra.csproj",
+  #           "Api/src/Microservices/Payment/ST.MS.Payment.Api/ST.MS.Payment.Api.csproj",
+  #           "Api/src/Microservices/Test/ST.MS.Test.Infra/ST.MS.Test.Infra.csproj",
+  #           "Api/src/Microservices/Test/ST.MS.Test.Api/ST.MS.Test.Api.csproj"
+  #         )
+  #         $restoreProjects | ForEach-Object {
+  #           dotnet restore $_ 2>&1 | Out-Null
+  #         }
+  #         $dbHost = "localhost"
+  #         $dbPort = "${{ vars.POSTGRES_HOST_PORT || '25432' }}"
+  #         $dbUser = "${{ secrets.PGUSER }}"
+  #         $dbPassword = "${{ secrets.PGPASSWORD }}"
+  #
+  #         $migrations = @(
+  #           @{
+  #             Name = "Identity"
+  #             Project = "Api/src/Microservices/Identity/ST.MS.Identity.Infra/ST.MS.Identity.Infra.csproj"
+  #             Startup = "Api/src/Microservices/Identity/ST.MS.Identity.Api/ST.MS.Identity.Api.csproj"
+  #             DbName = "${{ vars.IDENTITY_DB_NAME || 'st_identity' }}"
+  #           },
+  #           @{
+  #             Name = "OperationLog"
+  #             Project = "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Infra/ST.MS.OperationLog.Infra.csproj"
+  #             Startup = "Api/src/Microservices/OperationLog/ST.MS.OperationLog.Api/ST.MS.OperationLog.Api.csproj"
+  #             DbName = "${{ vars.OPERATIONLOG_DB_NAME || 'st_operationlog' }}"
+  #           },
+  #           @{
+  #             Name = "FileUpload"
+  #             Project = "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Infra/ST.MS.FileUpload.Infra.csproj"
+  #             Startup = "Api/src/Microservices/FileUpload/ST.MS.FileUpload.Api/ST.MS.FileUpload.Api.csproj"
+  #             DbName = "${{ vars.FILEUPLOAD_DB_NAME || 'st_fileupload' }}"
+  #           },
+  #           @{
+  #             Name = "Order"
+  #             Project = "Api/src/Microservices/Order/ST.MS.Order.Infra/ST.MS.Order.Infra.csproj"
+  #             Startup = "Api/src/Microservices/Order/ST.MS.Order.Api/ST.MS.Order.Api.csproj"
+  #             DbName = "${{ vars.ORDER_DB_NAME || 'st_order' }}"
+  #           },
+  #           @{
+  #             Name = "Inventory"
+  #             Project = "Api/src/Microservices/Inventory/ST.MS.Inventory.Infra/ST.MS.Inventory.Infra.csproj"
+  #             Startup = "Api/src/Microservices/Inventory/ST.MS.Inventory.Api/ST.MS.Inventory.Api.csproj"
+  #             DbName = "${{ vars.INVENTORY_DB_NAME || 'st_inventory' }}"
+  #           },
+  #           @{
+  #             Name = "Payment"
+  #             Project = "Api/src/Microservices/Payment/ST.MS.Payment.Infra/ST.MS.Payment.Infra.csproj"
+  #             Startup = "Api/src/Microservices/Payment/ST.MS.Payment.Api/ST.MS.Payment.Api.csproj"
+  #             DbName = "${{ vars.PAYMENT_DB_NAME || 'st_payment' }}"
+  #           },
+  #           @{
+  #             Name = "Test"
+  #             Project = "Api/src/Microservices/Test/ST.MS.Test.Infra/ST.MS.Test.Infra.csproj"
+  #             Startup = "Api/src/Microservices/Test/ST.MS.Test.Api/ST.MS.Test.Api.csproj"
+  #             DbName = "${{ vars.TEST_DB_NAME || 'st_test' }}"
+  #           }
+  #         )
+  #
+  #         foreach ($m in $migrations) {
+  #           Write-Host "Applying migration for $($m.Name) on DB=$($m.DbName)..."
+  #           $env:Database__ConnectionString = "Host=$dbHost;Port=$dbPort;Username=$dbUser;Password=$dbPassword;Database=$($m.DbName)"
+  #           dotnet ef database update --project $m.Project --startup-project $m.Startup --configuration Release
+  #         }
+  #
+  #     # ── Enable data seeding, restart only app services ──
+  #     - name: Enable data seeding (APP_IS_DATA_SEED=true)
+  #       shell: powershell
+  #       run: |
+  #         (Get-Content deploy/.env) -replace 'APP_IS_DATA_SEED=false', 'APP_IS_DATA_SEED=true' | Set-Content deploy/.env
+  #         Write-Host "APP_IS_DATA_SEED set to true"
+  #
+  #     - name: Restart services to run seeds
+  #       shell: powershell
+  #       run: |
+  #         $appServices = @(
+  #           "st-ms-identity-api",
+  #           "st-ms-operationlog-api",
+  #           "st-ms-operationlog-consumer",
+  #           "st-ms-fileupload-api",
+  #           "st-ms-test-api",
+  #           "st-ms-order-api",
+  #           "st-ms-inventory-api",
+  #           "st-ms-payment-api",
+  #           "st-gateway",
+  #           "st-web"
+  #         )
+  #         docker compose -p st -f deploy/docker-compose.yml --env-file deploy/.env up -d --force-recreate $appServices
+  #
+  #     - name: Health check — wait for gateway
+  #       shell: powershell
+  #       run: |
+  #         $gatewayPort = "${{ vars.GATEWAY_HOST_PORT || '25000' }}"
+  #         $maxRetries = 15
+  #         $retryDelay = 3
+  #         for ($i = 0; $i -lt $maxRetries; $i++) {
+  #           try {
+  #             $response = Invoke-WebRequest -Uri "http://localhost:${gatewayPort}/" -TimeoutSec 5 -UseBasicParsing
+  #             Write-Host "Gateway is healthy! (HTTP $($response.StatusCode))"
+  #             break
+  #           } catch {
+  #             Write-Host "Waiting for gateway (attempt $($i+1)/$maxRetries)..."
+  #             if ($i -eq $maxRetries - 1) { throw "Gateway not available after $($maxRetries * $retryDelay) seconds" }
+  #             Start-Sleep -Seconds $retryDelay
+  #           }
+  #         }
 
   # ══════════════════════════════════════════════
   # Cleanup old dev images  ← 新增 job
@@ -426,9 +465,9 @@ jobs:
       contents: read
       packages: write       # needed for DELETE versions
     env:
-      KEEP_COUNT: 10
+      KEEP_COUNT: 4
       # 与 build-backend matrix.service.name + st-web 保持一致
-      SERVICES: '["st-ms-identity-api","st-ms-operationlog-api","st-ms-operationlog-consumer","st-ms-fileupload-api","st-ms-test-api","st-gateway","st-web"]'
+      SERVICES: '["st-ms-identity-api","st-ms-operationlog-api","st-ms-operationlog-consumer","st-ms-fileupload-api","st-ms-test-api","st-ms-order-api","st-ms-inventory-api","st-ms-payment-api","st-gateway","st-web"]'
       # 可被 workflow_dispatch 的 dry_run 输入覆盖
       DRY_RUN: ${{ inputs.dry_run || false }}
     steps:

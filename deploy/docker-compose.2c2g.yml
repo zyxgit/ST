@@ -116,13 +116,7 @@ services:
   # Backend Microservices
   # ──────────────────────────────────────────────
   st-ms-identity-api:
-    build:
-      context: ../Api/src
-      dockerfile: Dockerfile
-      args:
-        PROJECT: Microservices/Identity/ST.MS.Identity.Api/ST.MS.Identity.Api.csproj
-        DLL: ST.MS.Identity.Api.dll
-    image: st-ms-identity-api:local
+    image: ghcr.io/zyxgit/st/st-ms-identity-api:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       HTTP_PORTS: 8080
@@ -158,13 +152,7 @@ services:
         max-file: "1"
 
   st-ms-operationlog-api:
-    build:
-      context: ../Api/src
-      dockerfile: Dockerfile
-      args:
-        PROJECT: Microservices/OperationLog/ST.MS.OperationLog.Api/ST.MS.OperationLog.Api.csproj
-        DLL: ST.MS.OperationLog.Api.dll
-    image: st-ms-operationlog-api:local
+    image: ghcr.io/zyxgit/st/st-ms-operationlog-api:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       HTTP_PORTS: 8080
@@ -195,13 +183,7 @@ services:
         max-file: "1"
 
   st-ms-operationlog-consumer:
-    build:
-      context: ../Api/src
-      dockerfile: Dockerfile
-      args:
-        PROJECT: Microservices/OperationLog/ST.MS.OperationLog.Consumer/ST.MS.OperationLog.Consumer.csproj
-        DLL: ST.MS.OperationLog.Consumer.dll
-    image: st-ms-operationlog-consumer:local
+    image: ghcr.io/zyxgit/st/st-ms-operationlog-consumer:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       DOTNET_ENVIRONMENT: Production
@@ -228,13 +210,7 @@ services:
         max-file: "1"
 
   st-ms-fileupload-api:
-    build:
-      context: ../Api/src
-      dockerfile: Dockerfile
-      args:
-        PROJECT: Microservices/FileUpload/ST.MS.FileUpload.Api/ST.MS.FileUpload.Api.csproj
-        DLL: ST.MS.FileUpload.Api.dll
-    image: st-ms-fileupload-api:local
+    image: ghcr.io/zyxgit/st/st-ms-fileupload-api:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       HTTP_PORTS: 8080
@@ -269,13 +245,7 @@ services:
         max-file: "1"
 
   st-ms-order-api:
-    build:
-      context: ../Api/src
-      dockerfile: Dockerfile
-      args:
-        PROJECT: Microservices/Order/ST.MS.Order.Api/ST.MS.Order.Api.csproj
-        DLL: ST.MS.Order.Api.dll
-    image: st-ms-order-api:local
+    image: ghcr.io/zyxgit/st/st-ms-order-api:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       HTTP_PORTS: 8080
@@ -310,13 +280,7 @@ services:
         max-file: "1"
 
   st-ms-inventory-api:
-    build:
-      context: ../Api/src
-      dockerfile: Dockerfile
-      args:
-        PROJECT: Microservices/Inventory/ST.MS.Inventory.Api/ST.MS.Inventory.Api.csproj
-        DLL: ST.MS.Inventory.Api.dll
-    image: st-ms-inventory-api:local
+    image: ghcr.io/zyxgit/st/st-ms-inventory-api:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       HTTP_PORTS: 8080
@@ -351,13 +315,7 @@ services:
         max-file: "1"
 
   st-ms-payment-api:
-    build:
-      context: ../Api/src
-      dockerfile: Dockerfile
-      args:
-        PROJECT: Microservices/Payment/ST.MS.Payment.Api/ST.MS.Payment.Api.csproj
-        DLL: ST.MS.Payment.Api.dll
-    image: st-ms-payment-api:local
+    image: ghcr.io/zyxgit/st/st-ms-payment-api:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       HTTP_PORTS: 8080
@@ -392,13 +350,7 @@ services:
         max-file: "1"
 
   st-gateway:
-    build:
-      context: ../Api/src
-      dockerfile: Dockerfile
-      args:
-        PROJECT: Microservices/Gateway/ST.Gateway/ST.Gateway.csproj
-        DLL: ST.Gateway.dll
-    image: st-gateway:local
+    image: ghcr.io/zyxgit/st/st-gateway:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       HTTP_PORTS: 8080
@@ -449,10 +401,7 @@ services:
   # Frontend
   # ──────────────────────────────────────────────
   st-web:
-    build:
-      context: ../Web
-      dockerfile: Dockerfile
-    image: st-web:local
+    image: ghcr.io/zyxgit/st/st-web:latest
     ports:
       - "${WEB_HOST_PORT:-280}:80"
     networks:

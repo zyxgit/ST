@@ -266,13 +266,24 @@ docker compose -f docker-compose.2c2g.yml exec postgres \
 
 ---
 
-## 七、启动全部应用
+## 七、拉取镜像并启动全部应用
+
+> 镜像由 GitHub Actions 构建并推送至 ghcr.io，服务器只需拉取即可。
+
+### 7.1 登录 ghcr.io（首次拉取需要）
+
+```bash
+# 使用 GitHub Personal Access Token 登录（需有 read:packages 权限）
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+```
+
+### 7.2 启动所有服务
 
 ```bash
 cd ~/st/deploy
 
-# 启动所有服务
-docker compose -f docker-compose.2c2g.yml --env-file .env up -d
+# 拉取最新镜像并启动所有服务
+docker compose -f docker-compose.2c2g.yml --env-file .env up -d --pull always
 
 # 查看状态（等待所有容器 healthy）
 docker compose -f docker-compose.2c2g.yml ps
@@ -281,7 +292,7 @@ docker compose -f docker-compose.2c2g.yml ps
 docker stats --no-stream
 ```
 
-### 7.1 等待服务就绪
+### 7.3 等待服务就绪
 
 ```bash
 # 等待 Gateway 健康检查通过
@@ -431,9 +442,16 @@ sudo systemctl enable --now nginx
 sudo certbot --nginx -d your-domain.com
 ```
 
-### 11.2 设置自动更新镜像（CI/CD）
+### 11.2 设置自动部署（CI/CD）
 
-参考 `.github/workflows/build-images-and-deploy.yml`，配置 GitHub Actions self-hosted runner 实现推代码自动部署。
+镜像由 GitHub Actions 构建并推送至 ghcr.io，服务器只需拉取即可。
+
+参考 `.github/workflows/build-images-and-deploy.yml`，配置 GitHub Actions 实现推代码自动构建并部署。
+
+**部署流程：**
+1. 推送代码到 GitHub
+2. GitHub Actions 自动构建所有服务镜像并推送到 ghcr.io
+3. 服务器上执行 `docker compose up -d --pull always` 拉取最新镜像并重启
 
 ### 11.3 日志查看
 
@@ -465,8 +483,8 @@ crontab -e
 ## 快速命令速查
 
 ```bash
-# 启动
-cd ~/st/deploy && docker compose -f docker-compose.2c2g.yml --env-file .env up -d
+# 启动（拉取最新镜像并启动）
+cd ~/st/deploy && docker compose -f docker-compose.2c2g.yml --env-file .env up -d --pull always
 
 # 停止
 cd ~/st/deploy && docker compose -f docker-compose.2c2g.yml down
@@ -483,7 +501,7 @@ docker stats --no-stream
 # 查看日志
 docker compose -f docker-compose.2c2g.yml logs -f --tail 50
 
-# 更新镜像并重启
+# 拉取代码 → 更新镜像并重启（镜像由 GitHub Actions 构建）
 cd ~/st && git pull
 cd deploy && docker compose -f docker-compose.2c2g.yml --env-file .env up -d --pull always
 ```
