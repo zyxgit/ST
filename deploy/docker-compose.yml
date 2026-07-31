@@ -139,6 +139,12 @@ services:
   # Backend Microservices
   # ──────────────────────────────────────────────
   st-ms-identity-api:
+    build:
+      context: ../Api/src
+      dockerfile: Dockerfile
+      args:
+        PROJECT: Microservices/Identity/ST.MS.Identity.Api/ST.MS.Identity.Api.csproj
+        DLL: ST.MS.Identity.Api.dll
     image: ghcr.io/zyxgit/st/st-ms-identity-api:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -168,6 +174,12 @@ services:
     restart: unless-stopped
 
   st-ms-operationlog-api:
+    build:
+      context: ../Api/src
+      dockerfile: Dockerfile
+      args:
+        PROJECT: Microservices/OperationLog/ST.MS.OperationLog.Api/ST.MS.OperationLog.Api.csproj
+        DLL: ST.MS.OperationLog.Api.dll
     image: ghcr.io/zyxgit/st/st-ms-operationlog-api:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -192,6 +204,12 @@ services:
     restart: unless-stopped
 
   st-ms-operationlog-consumer:
+    build:
+      context: ../Api/src
+      dockerfile: Dockerfile
+      args:
+        PROJECT: Microservices/OperationLog/ST.MS.OperationLog.Consumer/ST.MS.OperationLog.Consumer.csproj
+        DLL: ST.MS.OperationLog.Consumer.dll
     image: ghcr.io/zyxgit/st/st-ms-operationlog-consumer:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -212,6 +230,12 @@ services:
     restart: unless-stopped
 
   st-ms-fileupload-api:
+    build:
+      context: ../Api/src
+      dockerfile: Dockerfile
+      args:
+        PROJECT: Microservices/FileUpload/ST.MS.FileUpload.Api/ST.MS.FileUpload.Api.csproj
+        DLL: ST.MS.FileUpload.Api.dll
     image: ghcr.io/zyxgit/st/st-ms-fileupload-api:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -240,6 +264,12 @@ services:
     restart: unless-stopped
 
   st-ms-test-api:
+    build:
+      context: ../Api/src
+      dockerfile: Dockerfile
+      args:
+        PROJECT: Microservices/Test/ST.MS.Test.Api/ST.MS.Test.Api.csproj
+        DLL: ST.MS.Test.Api.dll
     image: ghcr.io/zyxgit/st/st-ms-test-api:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -268,6 +298,12 @@ services:
     restart: unless-stopped
 
   st-ms-order-api:
+    build:
+      context: ../Api/src
+      dockerfile: Dockerfile
+      args:
+        PROJECT: Microservices/Order/ST.MS.Order.Api/ST.MS.Order.Api.csproj
+        DLL: ST.MS.Order.Api.dll
     image: ghcr.io/zyxgit/st/st-ms-order-api:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -296,6 +332,12 @@ services:
     restart: unless-stopped
 
   st-ms-inventory-api:
+    build:
+      context: ../Api/src
+      dockerfile: Dockerfile
+      args:
+        PROJECT: Microservices/Inventory/ST.MS.Inventory.Api/ST.MS.Inventory.Api.csproj
+        DLL: ST.MS.Inventory.Api.dll
     image: ghcr.io/zyxgit/st/st-ms-inventory-api:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -324,6 +366,12 @@ services:
     restart: unless-stopped
 
   st-ms-payment-api:
+    build:
+      context: ../Api/src
+      dockerfile: Dockerfile
+      args:
+        PROJECT: Microservices/Payment/ST.MS.Payment.Api/ST.MS.Payment.Api.csproj
+        DLL: ST.MS.Payment.Api.dll
     image: ghcr.io/zyxgit/st/st-ms-payment-api:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -352,6 +400,12 @@ services:
     restart: unless-stopped
 
   st-gateway:
+    build:
+      context: ../Api/src
+      dockerfile: Dockerfile
+      args:
+        PROJECT: Microservices/Gateway/ST.Gateway/ST.Gateway.csproj
+        DLL: ST.Gateway.dll
     image: ghcr.io/zyxgit/st/st-gateway:latest
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -399,6 +453,9 @@ services:
   # Frontend
   # ──────────────────────────────────────────────
   st-web:
+    build:
+      context: ../Web
+      dockerfile: Dockerfile
     image: ghcr.io/zyxgit/st/st-web:latest
     ports:
       - "${WEB_HOST_PORT:-280}:80"

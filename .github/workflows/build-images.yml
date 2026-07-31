@@ -82,35 +82,18 @@ jobs:
           APP_IS_DATA_SEED=false
           EOF
 
-      - name: Compute image tag
-        id: tag
-        run: |
-          if [ -n "${{ inputs.tag_override }}" ]; then
-            echo "tag=${{ inputs.tag_override }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=dev-$(date +'%Y%m%d')-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Build and push images
+      - name: Build all images
         shell: bash
         run: |
           cd deploy
-          TAG="${{ steps.tag.outputs.tag }}"
-          REGISTRY="${{ env.REGISTRY }}/${{ github.repository_owner }}/st"
+          docker compose -f docker-compose.yml --env-file .env build
 
-          # 构建并推送每个服务
-          for svc in st-ms-identity-api st-ms-operationlog-api st-ms-operationlog-consumer \
-                     st-ms-fileupload-api st-ms-test-api st-ms-order-api \
-                     st-ms-inventory-api st-ms-payment-api st-gateway st-web; do
-            echo ">>> Building and pushing $svc ..."
-            docker compose -f docker-compose.yml --env-file .env build "$svc"
-            docker tag "$svc:latest" "$REGISTRY/$svc:$TAG"
-            docker tag "$svc:latest" "$REGISTRY/$svc:latest"
-            if [ "${{ inputs.push_images }}" != "false" ]; then
-              docker push "$REGISTRY/$svc:$TAG"
-              docker push "$REGISTRY/$svc:latest"
-            fi
-          done
+      - name: Push images
+        if: inputs.push_images != 'false'
+        shell: bash
+        run: |
+          cd deploy
+          docker compose -f docker-compose.yml --env-file .env push
 
       - name: Cleanup local images
         if: always()
