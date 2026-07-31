@@ -401,6 +401,11 @@ services:
   # Frontend
   # ──────────────────────────────────────────────
   st-web:
+    build:
+      context: ../Web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:25000}
     image: ghcr.io/zyxgit/st/st-web:latest
     ports:
       - "${WEB_HOST_PORT:-280}:80"
