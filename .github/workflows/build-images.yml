@@ -82,18 +82,30 @@ jobs:
           APP_IS_DATA_SEED=false
           EOF
 
-      - name: Build all images
+      - name: Build and push images (sequential to avoid NuGet cache conflicts)
         shell: bash
         run: |
           cd deploy
-          docker compose -f docker-compose.yml --env-file .env build
-
-      - name: Push images
-        if: inputs.push_images != 'false'
-        shell: bash
-        run: |
-          cd deploy
-          docker compose -f docker-compose.yml --env-file .env push
+          SERVICES=(
+            st-ms-identity-api
+            st-ms-operationlog-api
+            st-ms-operationlog-consumer
+            st-ms-fileupload-api
+            st-ms-test-api
+            st-ms-order-api
+            st-ms-inventory-api
+            st-ms-payment-api
+            st-gateway
+            st-web
+          )
+          for svc in "${SERVICES[@]}"; do
+            echo ">>> Building $svc ..."
+            docker compose -f docker-compose.yml --env-file .env build "$svc"
+            if [ "${{ inputs.push_images }}" != "false" ]; then
+              echo ">>> Pushing $svc ..."
+              docker compose -f docker-compose.yml --env-file .env push "$svc"
+            fi
+          done
 
       - name: Cleanup local images
         if: always()
