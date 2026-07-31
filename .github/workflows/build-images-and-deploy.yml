@@ -17,6 +17,10 @@ on:
       tag_override:
         description: Override image tag (defaults to git sha)
         required: false
+      vite_api_base_url:
+        description: Frontend API base URL (e.g. http://your-server:25000)
+        required: false
+        default: http://localhost:25000
       dry_run:
         description: Dry-run mode for cleanup (print only, no delete)
         type: boolean
@@ -169,7 +173,7 @@ jobs:
           tags: ${{ steps.docker_meta.outputs.tags }}
           labels: ${{ steps.docker_meta.outputs.labels }}
           build-args: |
-            VITE_API_BASE_URL=http://localhost:25000
+            VITE_API_BASE_URL=${{ inputs.vite_api_base_url || 'http://localhost:25000' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
