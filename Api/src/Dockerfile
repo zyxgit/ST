@@ -9,7 +9,8 @@ COPY . .
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
     dotnet restore "${PROJECT}"
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
-    dotnet publish "${PROJECT}" -c Release -o /app/publish --no-restore
+    dotnet publish "${PROJECT}" -c Release -o /app/publish --no-restore \
+    /p:ErrorOnDuplicatePublishOutputFiles=false
 
 # ---- Runtime stage ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
