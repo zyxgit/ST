@@ -446,10 +446,10 @@ sudo certbot --nginx -d your-domain.com
 
 镜像由 GitHub Actions 构建并推送至 ghcr.io，服务器只需拉取即可。
 
-参考 `.github/workflows/build-images-and-deploy.yml`，配置 GitHub Actions 实现推代码自动构建并部署。
+参考 `.github/workflows/build-images.yml`，配置 GitHub Actions 实现推代码自动构建并部署。
 
 **部署流程：**
-1. 推送代码到 GitHub
+1. 推送代码到 `main` 分支
 2. GitHub Actions 自动构建所有服务镜像并推送到 ghcr.io
 3. 服务器上执行 `docker compose up -d --pull always` 拉取最新镜像并重启
 
