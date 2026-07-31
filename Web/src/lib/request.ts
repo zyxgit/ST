@@ -7,7 +7,7 @@ import type { LoginResult } from '@/types/auth'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
 /** 网关路由要求路径以 /api 开头，拼接后的 baseURL 形如 http://host:port/api */
-const GATEWAY_URL = API_BASE ? `${API_BASE.replace(/\/+$/, '')}/api` : undefined
+const GATEWAY_URL = API_BASE ? `${API_BASE.replace(/\/+$/, '')}/api` : '/api'
 
 const instance = axios.create({
   baseURL: GATEWAY_URL,
