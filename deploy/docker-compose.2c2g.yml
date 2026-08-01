@@ -7,8 +7,8 @@
 #   🔧 PostgreSQL 调低 shared_buffers / max_connections
 #   🔧 Redis 关闭持久化 + 限制 maxmemory
 #   🔧 RabbitMQ 使用精简镜像 (无 management 插件)
-#   🔧 每个 .NET 服务限制内存 128M
-#   🔧 移除所有 OTEL 配置 (无 Alloy 接收端)
+#   🔧 移除所有容器内存限制，避免 OOM kill
+#   🔧 Gateway 关闭 Redis 限流，减少请求延迟
 #   🔧 日志限制 5m + 1 份，防磁盘爆满
 #
 # 启动方式:
@@ -39,10 +39,6 @@ services:
     networks:
       - st-network
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 300M
     logging:
       driver: json-file
       options:
@@ -70,10 +66,6 @@ services:
     networks:
       - st-network
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 128M
     logging:
       driver: json-file
       options:
@@ -86,7 +78,7 @@ services:
       retries: 5
 
   rabbitmq:
-    image: rabbitmq:4.3-management-alpine
+    image: rabbitmq:4.3-alpine
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITUSER}
       RABBITMQ_DEFAULT_PASS: ${RABBITPASSWORD}
@@ -97,10 +89,6 @@ services:
     networks:
       - st-network
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
     logging:
       driver: json-file
       options:
@@ -141,10 +129,6 @@ services:
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 150M
     logging:
       driver: json-file
       options:
@@ -172,10 +156,6 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 150M
     logging:
       driver: json-file
       options:
@@ -199,10 +179,6 @@ services:
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 128M
     logging:
       driver: json-file
       options:
@@ -234,10 +210,6 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 150M
     logging:
       driver: json-file
       options:
@@ -269,10 +241,6 @@ services:
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 150M
     logging:
       driver: json-file
       options:
@@ -304,10 +272,6 @@ services:
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 150M
     logging:
       driver: json-file
       options:
@@ -339,10 +303,6 @@ services:
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 150M
     logging:
       driver: json-file
       options:
@@ -361,6 +321,7 @@ services:
       DownstreamServices__Inventory__Address: http://st-ms-inventory-api:8080
       DownstreamServices__Payment__Address: http://st-ms-payment-api:8080
       Cors__AllowedOrigins__0: http://localhost:${WEB_HOST_PORT:-28080}
+      RateLimiting__Enabled: "true"
     ports:
       - "${GATEWAY_HOST_PORT:-25000}:8080"
     volumes:
@@ -387,10 +348,6 @@ services:
       st-ms-payment-api:
         condition: service_started
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 150M
     logging:
       driver: json-file
       options:
@@ -415,10 +372,6 @@ services:
       st-gateway:
         condition: service_started
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 64M
     logging:
       driver: json-file
       options:
