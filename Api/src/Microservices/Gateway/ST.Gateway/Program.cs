@@ -210,7 +210,10 @@ static void ApplyGatewayDestinationOverrides(ConfigurationManager configuration)
 		["ReverseProxy:Clusters:identity-cluster:Destinations:identity-destination:Address"] = configuration["DownstreamServices:Identity:Address"],
 		["ReverseProxy:Clusters:operationlog-cluster:Destinations:operationlog-destination:Address"] = configuration["DownstreamServices:OperationLog:Address"],
 		["ReverseProxy:Clusters:test-cluster:Destinations:test-destination:Address"] = configuration["DownstreamServices:Test:Address"],
-		["ReverseProxy:Clusters:fileupload-cluster:Destinations:fileupload-destination:Address"] = configuration["DownstreamServices:FileUpload:Address"]
+		["ReverseProxy:Clusters:fileupload-cluster:Destinations:fileupload-destination:Address"] = configuration["DownstreamServices:FileUpload:Address"],
+		["ReverseProxy:Clusters:order-cluster:Destinations:order-destination:Address"] = configuration["DownstreamServices:Order:Address"],
+		["ReverseProxy:Clusters:inventory-cluster:Destinations:inventory-destination:Address"] = configuration["DownstreamServices:Inventory:Address"],
+		["ReverseProxy:Clusters:payment-cluster:Destinations:payment-destination:Address"] = configuration["DownstreamServices:Payment:Address"]
 	};
 
 	configuration.AddInMemoryCollection(mapping.Where(x => !string.IsNullOrWhiteSpace(x.Value))!);

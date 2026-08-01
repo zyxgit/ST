@@ -320,6 +320,7 @@ services:
       DownstreamServices__Order__Address: http://st-ms-order-api:8080
       DownstreamServices__Inventory__Address: http://st-ms-inventory-api:8080
       DownstreamServices__Payment__Address: http://st-ms-payment-api:8080
+      ConnectionStrings__cache: redis:6379,password=${REDIS_PASSWORD}
       Cors__AllowedOrigins__0: http://localhost:${WEB_HOST_PORT:-28080}
       RateLimiting__Enabled: "true"
     ports:
