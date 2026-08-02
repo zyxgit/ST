@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ST.MS.Identity.Application.Dtos.Role;
 using ST.MS.Identity.Application.IServices;
@@ -17,6 +19,7 @@ public sealed class RoleController : AbstractControllerBase
 	}
 
 	[HttpGet]
+	[Authorize(Policy = "perm:system:role:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	public async Task<IActionResult> GetPage([FromQuery] RoleQueryInputDto input)
 	{
 		var result = await _roleService.GetPageAsync(input);
@@ -24,6 +27,7 @@ public sealed class RoleController : AbstractControllerBase
 	}
 
 	[HttpGet("{id:guid}")]
+	[Authorize(Policy = "perm:system:role:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	public async Task<IActionResult> GetDetail(Guid id)
 	{
 		var result = await _roleService.GetDetailAsync(id);
@@ -31,6 +35,7 @@ public sealed class RoleController : AbstractControllerBase
 	}
 
 	[HttpPost]
+	[Authorize(Policy = "perm:system:role:create", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	[OperationLog("新增角色", RecordRequest = true, RecordResponse = false)]
 	public async Task<IActionResult> Create(CreateRoleInputDto input)
 	{
@@ -39,6 +44,7 @@ public sealed class RoleController : AbstractControllerBase
 	}
 
 	[HttpPut("{id:guid}")]
+	[Authorize(Policy = "perm:system:role:update", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	[OperationLog("编辑角色", RecordRequest = true, RecordResponse = false)]
 	public async Task Update(Guid id, UpdateRoleInputDto input)
 	{
@@ -46,6 +52,7 @@ public sealed class RoleController : AbstractControllerBase
 	}
 
 	[HttpPut("{id:guid}/permissions")]
+	[Authorize(Policy = "perm:system:role:update", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	[OperationLog("分配角色菜单权限", RecordRequest = true, RecordResponse = false)]
 	public async Task ChangePermissions(Guid id, ChangeRolePermissionsInputDto input)
 	{
@@ -53,6 +60,7 @@ public sealed class RoleController : AbstractControllerBase
 	}
 
 	[HttpDelete("{id:guid}")]
+	[Authorize(Policy = "perm:system:role:delete", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	[OperationLog("删除角色", RecordRequest = true, RecordResponse = false)]
 	public async Task Delete(Guid id)
 	{

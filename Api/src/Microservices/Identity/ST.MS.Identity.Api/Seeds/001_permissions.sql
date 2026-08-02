@@ -127,6 +127,10 @@ SELECT '11111111-1111-1111-1111-111111111312'::uuid, '11111111-1111-1111-1111-11
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'order:list:query');
 
 INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, sort, modify_by, modify_time, create_by, create_time)
+SELECT '11111111-1111-1111-1111-111111111314'::uuid, '11111111-1111-1111-1111-111111111302'::uuid, 'order:list:create', '新增订单', 3, NULL, NULL, NULL, false, false, true, false, 0, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'order:list:create');
+
+INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, sort, modify_by, modify_time, create_by, create_time)
 SELECT '11111111-1111-1111-1111-111111111313'::uuid, '11111111-1111-1111-1111-111111111302'::uuid, 'order:list:cancel', '取消订单', 3, NULL, NULL, NULL, false, false, true, false, 0, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'order:list:cancel');
 
@@ -205,6 +209,10 @@ WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'system:file:query');
 INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, sort, modify_by, modify_time, create_by, create_time)
 SELECT '11111111-1111-1111-1111-111111111616'::uuid, '11111111-1111-1111-1111-111111111601'::uuid, 'system:file:delete', '删除文件', 3, NULL, NULL, NULL, false, false, true, false, 0, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'system:file:delete');
+
+INSERT INTO permissions (id, p_id, code, name, type, path, menu_icon, component, is_link, keep_alive, is_hide, is_deleted, sort, modify_by, modify_time, create_by, create_time)
+SELECT '11111111-1111-1111-1111-111111111617'::uuid, '11111111-1111-1111-1111-111111111601'::uuid, 'system:file:upload', '上传文件', 3, NULL, NULL, NULL, false, false, true, false, 0, '00000000-0000-0000-0000-000000000000'::uuid, NOW(), '00000000-0000-0000-0000-000000000000'::uuid, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = 'system:file:upload');
 
 -- ============================================================
 -- 死信队列（挂在操作日志下）

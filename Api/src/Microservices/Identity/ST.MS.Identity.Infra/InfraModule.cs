@@ -57,6 +57,7 @@ public sealed class InfraModule : ServiceModule
 	private const string OrderListPermissionId = "11111111-1111-1111-1111-111111111302";
 	private const string OrderQueryPermissionId = "11111111-1111-1111-1111-111111111312";
 	private const string OrderCancelPermissionId = "11111111-1111-1111-1111-111111111313";
+	private const string OrderCreatePermissionId = "11111111-1111-1111-1111-111111111314";
 	private const string OrderFlashSalePermissionId = "11111111-1111-1111-1111-111111111303";
 	// 库存管理
 	private const string InventoryMenuPermissionId = "11111111-1111-1111-1111-111111111401";
@@ -67,11 +68,15 @@ public sealed class InfraModule : ServiceModule
 	// 支付管理
 	private const string PaymentMenuPermissionId = "11111111-1111-1111-1111-111111111501";
 	private const string PaymentRecordPermissionId = "11111111-1111-1111-1111-111111111502";
+	private const string PaymentOrderPayMenuPermissionId = "11111111-1111-1111-1111-111111111503";
 	private const string PaymentRecordQueryPermissionId = "11111111-1111-1111-1111-111111111512";
+	private const string PaymentOrderPayPermissionId = "11111111-1111-1111-1111-111111111513";
 	// 文件管理
+	private const string FileCataloguePermissionId = "11111111-1111-1111-1111-111111111600";
 	private const string FileMenuPermissionId = "11111111-1111-1111-1111-111111111601";
 	private const string FileQueryPermissionId = "11111111-1111-1111-1111-111111111612";
 	private const string FileDeletePermissionId = "11111111-1111-1111-1111-111111111616";
+	private const string FileUploadPermissionId = "11111111-1111-1111-1111-111111111617";
 
 	public override void ConfigureServices(IServiceCollection services)
 	{
@@ -217,6 +222,7 @@ public sealed class InfraModule : ServiceModule
 					('{OrderMenuPermissionId}'::uuid),
 					('{OrderListPermissionId}'::uuid),
 					('{OrderQueryPermissionId}'::uuid),
+					('{OrderCreatePermissionId}'::uuid),
 					('{OrderCancelPermissionId}'::uuid),
 					('{OrderFlashSalePermissionId}'::uuid),
 					-- 库存管理
@@ -228,10 +234,14 @@ public sealed class InfraModule : ServiceModule
 					-- 支付管理
 					('{PaymentMenuPermissionId}'::uuid),
 					('{PaymentRecordPermissionId}'::uuid),
+					('{PaymentOrderPayMenuPermissionId}'::uuid),
 					('{PaymentRecordQueryPermissionId}'::uuid),
+					('{PaymentOrderPayPermissionId}'::uuid),
 					-- 文件管理
+					('{FileCataloguePermissionId}'::uuid),
 					('{FileMenuPermissionId}'::uuid),
 					('{FileQueryPermissionId}'::uuid),
+					('{FileUploadPermissionId}'::uuid),
 					('{FileDeletePermissionId}'::uuid)
 				) AS seeded(permission_id)
 				WHERE NOT EXISTS (

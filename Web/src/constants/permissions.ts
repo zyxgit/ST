@@ -29,9 +29,11 @@ export const PermissionCode = {
   TenantQuota: 'system:tenant:quota',
 
   FileQuery: 'system:file:query',
+  FileUpload: 'system:file:upload',
   FileDelete: 'system:file:delete',
 
   OrderQuery: 'order:list:query',
+  OrderCreate: 'order:list:create',
   OrderCancel: 'order:list:cancel',
 
   InventorySkuQuery: 'inventory:sku:query',

@@ -241,19 +241,19 @@ onMounted(async () => {
         <n-form-item label="上级菜单">
           <n-select v-model:value="formValue.parentId" :options="parentOptions" />
         </n-form-item>
-        <n-form-item label="名称" path="name">
+        <n-form-item label="名称" path="name" required>
           <n-input v-model:value="formValue.name" />
         </n-form-item>
-        <n-form-item label="编码" path="code">
+        <n-form-item label="编码" path="code" required>
           <n-input v-model:value="formValue.code" />
         </n-form-item>
-        <n-form-item label="类型" path="type">
+        <n-form-item label="类型" path="type" required>
           <n-select v-model:value="formValue.type" :options="typeOptions" />
         </n-form-item>
-        <n-form-item v-if="formValue.type !== PermissionType.Button" label="路由路径" path="path">
+        <n-form-item v-if="formValue.type !== PermissionType.Button" label="路由路径" path="path" required>
           <n-input v-model:value="formValue.path" placeholder="/users" />
         </n-form-item>
-        <n-form-item v-if="formValue.type === PermissionType.Menu && !formValue.isLink" label="组件名" path="component">
+        <n-form-item v-if="formValue.type === PermissionType.Menu && !formValue.isLink" label="组件名" path="component" required>
           <n-input v-model:value="formValue.component" placeholder="admin/UsersView" />
         </n-form-item>
         <n-form-item label="图标">

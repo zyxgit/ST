@@ -53,6 +53,23 @@ export function optionalPhoneRule(label = '手机号'): FormItemRule {
   }
 }
 
+export function requiredPhoneRule(label = '手机号'): FormItemRule {
+  return {
+    trigger: ['input', 'blur'],
+    validator: (_rule, value: unknown) => {
+      if (value === null || value === undefined || value === '') {
+        return new Error(`请输入${label}`)
+      }
+
+      if (typeof value !== 'string' || !phonePattern.test(value.trim())) {
+        return new Error(`请输入正确的${label}`)
+      }
+
+      return true
+    },
+  }
+}
+
 export function passwordRule(label = '密码', min = 6, max = 32): FormItemRule {
   return {
     trigger: ['input', 'blur'],

@@ -231,10 +231,10 @@ onMounted(async () => {
     <n-drawer v-model:show="showModal" :width="760" placement="right">
       <n-drawer-content :title="editingId ? '编辑角色' : '新增角色'" body-content-style="padding-bottom: 12px">
       <n-form ref="formRef" :model="formValue" :rules="rules" label-placement="top">
-        <n-form-item label="编码" path="code">
+        <n-form-item label="编码" path="code" required>
           <n-input v-model:value="formValue.code" />
         </n-form-item>
-        <n-form-item label="名称" path="name">
+        <n-form-item label="名称" path="name" required>
           <n-input v-model:value="formValue.name" />
         </n-form-item>
         <n-form-item label="描述">

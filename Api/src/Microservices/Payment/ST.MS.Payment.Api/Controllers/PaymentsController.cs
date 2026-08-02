@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ST.MS.Payment.Application.Dto;
@@ -9,7 +10,6 @@ namespace ST.MS.Payment.Api.Controllers;
 /// <summary>
 /// 支付管理接口（模拟）。
 /// </summary>
-[AllowAnonymous]
 public class PaymentsController : AbstractControllerBase
 {
 	private readonly IPaymentService _paymentService;
@@ -25,6 +25,7 @@ public class PaymentsController : AbstractControllerBase
 	/// 模拟支付成功
 	/// </summary>
 	[HttpPost("mock/pay")]
+	[Authorize(Policy = "perm:payment:order:pay", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	public async Task<ActionResult<PaymentDto>> MockPay([FromQuery] Guid orderId, CancellationToken ct)
 	{
 		var payment = await _paymentService.MockPayAsync(orderId, ct);
@@ -38,6 +39,7 @@ public class PaymentsController : AbstractControllerBase
 	/// 模拟支付失败
 	/// </summary>
 	[HttpPost("mock/fail")]
+	[Authorize(Policy = "perm:payment:order:pay", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	public async Task<ActionResult<PaymentDto>> MockFail(
 		[FromQuery] Guid orderId,
 		[FromQuery] string reason = "模拟支付失败",
@@ -54,6 +56,7 @@ public class PaymentsController : AbstractControllerBase
 	/// 查询支付记录（按订单 ID）
 	/// </summary>
 	[HttpGet("{orderId:guid}")]
+	[Authorize(Policy = "perm:payment:record:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	public async Task<ActionResult<PaymentDto>> GetPayment(Guid orderId, CancellationToken ct)
 	{
 		var payment = await _paymentService.GetPaymentAsync(orderId, ct);
@@ -70,6 +73,7 @@ public class PaymentsController : AbstractControllerBase
 	/// 查询支付记录（按订单号）
 	/// </summary>
 	[HttpGet("by-order-no/{orderNo}")]
+	[Authorize(Policy = "perm:payment:record:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	public async Task<ActionResult<PaymentDto>> GetPaymentByOrderNo(string orderNo, CancellationToken ct)
 	{
 		var payment = await _paymentService.GetPaymentByOrderNoAsync(orderNo, ct);

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -37,6 +38,7 @@ public sealed class FileController : AbstractControllerBase
     /// 文件列表分页查询
     /// </summary>
     [HttpGet]
+    [Authorize(Policy = "perm:system:file:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     public async Task<IActionResult> GetList([FromQuery] FileQueryInputDto input)
     {
         var result = await _fileAppService.GetListAsync(input);
@@ -49,6 +51,7 @@ public sealed class FileController : AbstractControllerBase
     /// <param name="file">表单文件</param>
     /// <param name="accessLevel">访问级别（Public/Private，默认 Private）</param>
     [HttpPost("upload")]
+    [Authorize(Policy = "perm:system:file:upload", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     [RequestSizeLimit(200 * 1024 * 1024)] // 200MB 硬上限，实际限制由配置控制
     [ServiceFilter<FileUploadValidationFilter>]
     [OperationLog("文件上传", RecordRequest = true, RecordResponse = true)]
@@ -68,18 +71,19 @@ public sealed class FileController : AbstractControllerBase
     /// 删除文件（上传者或拥有 FileDelete 权限的管理员可删除）
     /// </summary>
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "perm:system:file:delete", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     [OperationLog("删除文件", RecordRequest = true, RecordResponse = false)]
     public async Task Delete(Guid id)
     {
         var userId = _userContext.UserId ?? throw new BusinessException("用户未登录");
-        var hasDeletePermission = _userContext.Permissions.Contains("system:file:delete");
-        await _fileAppService.DeleteAsync(id, userId, hasDeletePermission);
+        await _fileAppService.DeleteAsync(id, userId, true);
     }
 
     /// <summary>
     /// 获取文件信息
     /// </summary>
     [HttpGet("{id:guid}")]
+    [Authorize(Policy = "perm:system:file:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     public async Task<IActionResult> Get(Guid id)
     {
         var result = await _fileAppService.GetAsync(id);
@@ -90,6 +94,7 @@ public sealed class FileController : AbstractControllerBase
     /// 下载文件（Private 文件仅上传者可下载）
     /// </summary>
     [HttpGet("{id:guid}/download")]
+    [Authorize(Policy = "perm:system:file:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     [OperationLog("下载文件", RecordRequest = true, RecordResponse = false)]
     public async Task<IActionResult> Download(Guid id)
     {
@@ -114,6 +119,7 @@ public sealed class FileController : AbstractControllerBase
     /// </summary>
     /// <param name="request">请求参数</param>
     [HttpPost("signed-url")]
+    [Authorize(Policy = "perm:system:file:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     [OperationLog("生成签名URL", RecordRequest = true, RecordResponse = true)]
     public IActionResult GenerateSignedUrl([FromBody] GenerateSignedUrlRequestDto request)
     {

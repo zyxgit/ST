@@ -169,7 +169,7 @@ onUnmounted(() => {
         <n-form ref="formRef" :model="formValue" :rules="rules" @submit.prevent="handleSubmit">
           <n-grid :cols="1" :y-gap="16">
             <n-grid-item>
-              <n-form-item label="邮箱" path="email">
+              <n-form-item label="邮箱" path="email" required>
                 <n-input v-model:value="formValue.email" placeholder="示例账号 test@qq.com">
                   <template #prefix>
                     <n-icon><mail-outline /></n-icon>
@@ -178,7 +178,7 @@ onUnmounted(() => {
               </n-form-item>
             </n-grid-item>
             <n-grid-item>
-              <n-form-item label="密码" path="password">
+              <n-form-item label="密码" path="password" required>
                 <n-input
                   v-model:value="formValue.password"
                   show-password-on="click"

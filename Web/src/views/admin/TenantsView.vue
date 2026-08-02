@@ -464,10 +464,10 @@ onMounted(async () => {
     <n-drawer v-model:show="showFormDrawer" :width="500" placement="right">
       <n-drawer-content :title="editingId ? '编辑租户' : '新增租户'" body-content-style="padding-bottom: 12px">
         <n-form ref="formRef" :model="formValue" :rules="rules" label-placement="top">
-          <n-form-item label="租户编码" path="code">
+          <n-form-item label="租户编码" path="code" required>
             <n-input v-model:value="formValue.code" :disabled="!!editingId" placeholder="小写字母+数字，如 acme" />
           </n-form-item>
-          <n-form-item label="租户名称" path="name">
+          <n-form-item label="租户名称" path="name" required>
             <n-input v-model:value="formValue.name" />
           </n-form-item>
           <n-form-item label="套餐">

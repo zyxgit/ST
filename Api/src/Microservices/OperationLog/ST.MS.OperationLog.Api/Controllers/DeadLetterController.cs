@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ST.MS.OperationLog.Application.Dtos.DeadLetter;
 using ST.MS.OperationLog.Application.IServices;
@@ -28,6 +30,7 @@ public sealed class DeadLetterController : AbstractControllerBase
 	/// </summary>
 	/// <param name="input">查询条件</param>
 	[HttpGet]
+	[Authorize(Policy = "perm:system:deadletter:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	public async Task<IActionResult> Query([FromQuery] DeadLetterQueryInputDto input)
 	{
 		var result = await _queryService.QueryAsync(input);
@@ -39,6 +42,7 @@ public sealed class DeadLetterController : AbstractControllerBase
 	/// </summary>
 	/// <param name="id">死信消息 ID</param>
 	[HttpGet("{id:guid}")]
+	[Authorize(Policy = "perm:system:deadletter:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	public async Task<IActionResult> GetById(Guid id)
 	{
 		var result = await _queryService.GetByIdAsync(id);
@@ -50,6 +54,7 @@ public sealed class DeadLetterController : AbstractControllerBase
 	/// </summary>
 	/// <param name="id">死信消息 ID</param>
 	[HttpPost("{id:guid}/replay")]
+	[Authorize(Policy = "perm:system:deadletter:replay", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	[OperationLog("重放死信消息", RecordRequest = true, RecordResponse = true)]
 	public async Task<IActionResult> Replay(Guid id)
 	{
@@ -62,6 +67,7 @@ public sealed class DeadLetterController : AbstractControllerBase
 	/// </summary>
 	/// <param name="request">包含要重放的 ID 列表</param>
 	[HttpPost("batch-replay")]
+	[Authorize(Policy = "perm:system:deadletter:replay", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	[OperationLog("批量重放死信消息", RecordRequest = true, RecordResponse = true)]
 	public async Task<IActionResult> BatchReplay([FromBody] BatchReplayRequestDto request)
 	{

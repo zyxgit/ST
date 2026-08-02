@@ -23,7 +23,7 @@ import TableActions from '@/components/common/TableActions.vue'
 import { changeUserStatus, createUser, deleteUser, getRoleOptions, getUserDetail, getUsers, resetUserPassword, updateUser } from '@/api/user'
 import { PermissionCode } from '@/constants/permissions'
 import { formatDateTime } from '@/lib/dayjs'
-import { arrayRequiredRule, emailRule, optionalPhoneRule, passwordRule, requiredRule } from '@/lib/form-rules'
+import { arrayRequiredRule, emailRule, requiredPhoneRule, passwordRule, requiredRule } from '@/lib/form-rules'
 import { useDiscrete } from '@/lib/naive'
 import { useAuthStore } from '@/stores/auth'
 import type { UserListItem } from '@/types/user'
@@ -59,7 +59,7 @@ const formValue = reactive({
 const rules = computed<FormRules>(() => ({
   nickName: [requiredRule('昵称')],
   email: [emailRule()],
-  phone: [optionalPhoneRule()],
+  phone: [requiredPhoneRule()],
   roleIds: [arrayRequiredRule('角色')],
   ...(editingId.value ? {} : { password: [passwordRule('初始密码')] }),
 }))
@@ -299,19 +299,19 @@ onMounted(async () => {
     <n-drawer v-model:show="showModal" :width="560" placement="right">
       <n-drawer-content :title="editingId ? '编辑用户' : '新增用户'" body-content-style="padding-bottom: 12px">
       <n-form ref="formRef" :model="formValue" :rules="rules" label-placement="top">
-        <n-form-item label="昵称" path="nickName">
+        <n-form-item label="昵称" path="nickName" required>
           <n-input v-model:value="formValue.nickName" />
         </n-form-item>
-        <n-form-item label="邮箱" path="email">
+        <n-form-item label="邮箱" path="email" required>
           <n-input v-model:value="formValue.email" />
         </n-form-item>
-        <n-form-item label="手机号" path="phone">
+        <n-form-item label="手机号" path="phone" required>
           <n-input v-model:value="formValue.phone" />
         </n-form-item>
-        <n-form-item v-if="!editingId" label="初始密码" path="password">
+        <n-form-item v-if="!editingId" label="初始密码" path="password" required>
           <n-input v-model:value="formValue.password" type="password" show-password-on="click" />
         </n-form-item>
-        <n-form-item label="角色" path="roleIds">
+        <n-form-item label="角色" path="roleIds" required>
           <n-select v-model:value="formValue.roleIds" multiple :options="roleOptions" />
         </n-form-item>
         <n-form-item label="启用">

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ST.MS.Order.Application.Dto;
@@ -10,7 +11,6 @@ namespace ST.MS.Order.Api.Controllers;
 /// <summary>
 /// 订单管理接口。
 /// </summary>
-[AllowAnonymous]
 public class OrdersController : AbstractControllerBase
 {
 	private readonly IOrderService _orderService;
@@ -29,6 +29,7 @@ public class OrdersController : AbstractControllerBase
 	/// <param name="ct">取消令牌</param>
 	/// <returns>创建的订单</returns>
 	[HttpPost]
+	[Authorize(Policy = "perm:order:list:create", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	public async Task<ActionResult<OrderDto>> CreateOrder([FromBody] CreateOrderDto input, CancellationToken ct)
 	{
 		var order = await _orderService.CreateOrderAsync(input, ct);
@@ -42,6 +43,7 @@ public class OrdersController : AbstractControllerBase
 	/// 订单列表
 	/// </summary>
 	[HttpGet]
+	[Authorize(Policy = "perm:order:list:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	public async Task<ActionResult<PagedResultDto<OrderDto>>> GetOrders([FromQuery] OrderQueryDto query, CancellationToken ct)
 	{
 		var result = await _orderService.GetOrdersAsync(query, ct);
@@ -55,6 +57,7 @@ public class OrdersController : AbstractControllerBase
 	/// <param name="ct">取消令牌</param>
 	/// <returns>订单详情</returns>
 	[HttpGet("{id:guid}")]
+	[Authorize(Policy = "perm:order:list:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	public async Task<ActionResult<OrderDto>> GetOrder(Guid id, CancellationToken ct)
 	{
 		var order = await _orderService.GetOrderAsync(id, ct);
@@ -75,6 +78,7 @@ public class OrdersController : AbstractControllerBase
 	/// <param name="ct">取消令牌</param>
 	/// <returns>取消后的订单</returns>
 	[HttpPost("{id:guid}/cancel")]
+	[Authorize(Policy = "perm:order:list:cancel", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 	public async Task<ActionResult<OrderDto>> CancelOrder(Guid id, [FromBody] CancelOrderDto input, CancellationToken ct)
 	{
 		var order = await _orderService.CancelOrderAsync(id, input.Reason, ct);
