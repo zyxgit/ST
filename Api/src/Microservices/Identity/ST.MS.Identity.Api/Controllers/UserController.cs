@@ -7,6 +7,7 @@ namespace ST.MS.Identity.Api.Controllers;
 /// <summary>
 /// 用户管理
 /// </summary>
+[Route("api/user")]
 public class UserController : AbstractControllerBase
 {
 	private readonly IUserService _userService;

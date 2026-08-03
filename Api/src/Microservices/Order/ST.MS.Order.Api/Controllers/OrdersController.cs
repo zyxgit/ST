@@ -7,6 +7,7 @@ namespace ST.MS.Order.Api.Controllers;
 /// <summary>
 /// 订单管理接口。
 /// </summary>
+[Route("api/orders")]
 public class OrdersController : AbstractControllerBase
 {
 	private readonly IOrderService _orderService;

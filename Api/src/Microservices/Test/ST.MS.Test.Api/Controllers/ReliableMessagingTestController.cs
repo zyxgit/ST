@@ -11,6 +11,7 @@ namespace ST.MS.Test.Api.Controllers;
 /// 用于测试 Outbox / Inbox 表的读写、状态变更和幂等功能。
 /// </summary>
 [AllowAnonymous]
+[Route("api/reliable-messaging")]
 public class ReliableMessagingTestController : AbstractControllerBase
 {
 	private readonly ReliableMessagingTestService _service;

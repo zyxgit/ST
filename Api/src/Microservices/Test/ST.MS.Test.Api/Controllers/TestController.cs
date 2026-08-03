@@ -7,6 +7,7 @@ using ST.Shared.WebApi.Controller;
 namespace ST.MS.Test.Api.Controllers;
 
 [AllowAnonymous]
+[Route("api")]
 public class TestController : AbstractControllerBase
 {
 	private readonly TestService _testService;
@@ -24,7 +25,7 @@ public class TestController : AbstractControllerBase
 	/// 测试获取
 	/// </summary>
 	/// <returns></returns>
-	[HttpGet("test")]
+	[HttpGet]
 	public ActionResult<string> Get()
 	{
 		return _testService.Test();

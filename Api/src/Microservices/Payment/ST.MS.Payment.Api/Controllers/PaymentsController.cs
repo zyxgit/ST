@@ -6,6 +6,7 @@ namespace ST.MS.Payment.Api.Controllers;
 /// <summary>
 /// 支付管理接口（模拟）。
 /// </summary>
+[Route("api/payments")]
 public class PaymentsController : AbstractControllerBase
 {
 	private readonly IPaymentService _paymentService;
