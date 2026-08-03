@@ -20,8 +20,8 @@ on:
 
 env:
   COMPOSE_FILE: ${{ inputs.compose_profile || 'docker-compose.2c2g.yml' }}
-  REPO_DIR: ~/st
-  DEPLOY_DIR: ~/st/deploy
+  REPO_DIR: /home/admin/st
+  DEPLOY_DIR: /home/admin/st/deploy
 
 concurrency:
   group: deploy-${{ github.ref }}
