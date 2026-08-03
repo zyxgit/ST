@@ -1,13 +1,13 @@
 name: Build Docker Images
 
 on:
-  push:
-    branches: [develop]
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-  schedule:
-    - cron: '0 6 * * *'    # daily at 06:00 UTC
+  # push:
+  #   branches: [develop]
+  #   paths-ignore:
+  #     - 'docs/**'
+  #     - '**.md'
+  # schedule:
+  #   - cron: '0 6 * * *'    # daily at 06:00 UTC
   workflow_dispatch:
     inputs:
       push_images:
