@@ -26,7 +26,6 @@ ST/
 │       └── ST.slnx           # 后端解决方案入口
 ├── Web/                      # Vue 3 + TypeScript 管理端
 ├── deploy/                   # Docker Compose、Alloy、Loki、Grafana、Prometheus 配置
-├── tools/                    # 压测与辅助脚本
 ├── docs/                     # 标准化项目文档
 └── AGENTS.md                 # Codex/Agent 仓库级指令
 ```
