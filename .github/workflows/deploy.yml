@@ -1,0 +1,164 @@
+name: Deploy to Server
+
+on:
+  workflow_run:
+    workflows: ["Build Docker Images"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      skip_migration:
+        description: Skip database migration
+        type: boolean
+        default: false
+      compose_profile:
+        description: Compose file to use
+        type: choice
+        options:
+          - docker-compose.2c2g.yml
+          - docker-compose.yml
+        default: docker-compose.2c2g.yml
+
+env:
+  COMPOSE_FILE: ${{ inputs.compose_profile || 'docker-compose.2c2g.yml' }}
+  REPO_DIR: ~/st
+  DEPLOY_DIR: ~/st/deploy
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: self-hosted
+    # 仅在构建成功或手动触发时执行
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      # ──────────────────────────────────────────────
+      # 1. 拉取代码
+      # ──────────────────────────────────────────────
+      - name: 拉取最新代码
+        working-directory: ${{ env.REPO_DIR }}
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+
+      # ──────────────────────────────────────────────
+      # 2. 登录 GHCR
+      # ──────────────────────────────────────────────
+      - name: 登录 GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ──────────────────────────────────────────────
+      # 3. 拉取最新镜像
+      # ──────────────────────────────────────────────
+      - name: 拉取最新镜像
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          docker compose -f ${{ env.COMPOSE_FILE }} pull \
+            postgres redis rabbitmq \
+            st-ms-identity-api st-ms-operationlog-api st-ms-operationlog-consumer \
+            st-ms-fileupload-api st-ms-test-api st-ms-order-api \
+            st-ms-inventory-api st-ms-payment-api st-gateway st-web || true
+
+      # ──────────────────────────────────────────────
+      # 4. 启动基础设施
+      # ──────────────────────────────────────────────
+      - name: 启动基础设施 (PostgreSQL, Redis, RabbitMQ)
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          docker compose -f ${{ env.COMPOSE_FILE }} up -d postgres redis rabbitmq
+          echo "基础设施容器已启动"
+
+      # ──────────────────────────────────────────────
+      # 5. 等待健康检查通过
+      # ──────────────────────────────────────────────
+      - name: 等待基础设施健康检查
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          TIMEOUT=120
+          ELAPSED=0
+          SERVICES="postgres redis rabbitmq"
+
+          echo "等待基础设施健康检查 (超时: ${TIMEOUT}s)..."
+
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            ALL_HEALTHY=true
+            for SVC in $SERVICES; do
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' "deploy-${SVC}-1" 2>/dev/null || echo "missing")
+              if [ "$STATUS" != "healthy" ]; then
+                ALL_HEALTHY=false
+                echo "  $SVC: $STATUS (${ELAPSED}s)"
+              fi
+            done
+
+            if [ "$ALL_HEALTHY" = true ]; then
+              echo "✅ 所有基础设施服务已就绪"
+              exit 0
+            fi
+
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+          done
+
+          echo "❌ 等待基础设施健康检查超时"
+          docker compose -f ${{ env.COMPOSE_FILE }} ps
+          docker compose -f ${{ env.COMPOSE_FILE }} logs --tail=50
+          exit 1
+
+      # ──────────────────────────────────────────────
+      # 6. 执行数据库迁移
+      # ──────────────────────────────────────────────
+      - name: 执行数据库迁移
+        if: ${{ inputs.skip_migration != true }}
+        working-directory: ${{ env.REPO_DIR }}
+        run: |
+          chmod +x deploy/migrate-all.sh
+          bash deploy/migrate-all.sh
+
+      # ──────────────────────────────────────────────
+      # 7. 启动全部服务
+      # ──────────────────────────────────────────────
+      - name: 启动全部服务
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          docker compose -f ${{ env.COMPOSE_FILE }} up -d
+          echo "全部服务已启动"
+
+      # ──────────────────────────────────────────────
+      # 8. 验证部署
+      # ──────────────────────────────────────────────
+      - name: 验证部署状态
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          sleep 10
+
+          echo "=== 容器状态 ==="
+          docker compose -f ${{ env.COMPOSE_FILE }} ps
+
+          echo ""
+          echo "=== 检查异常容器 ==="
+          UNHEALTHY=$(docker compose -f ${{ env.COMPOSE_FILE }} ps --format json | \
+            python3 -c "
+          import sys, json
+          for line in sys.stdin:
+            if not line.strip(): continue
+            c = json.loads(line)
+            state = c.get('State', '')
+            if state not in ('running', 'exited'):
+              print(f\"  ❌ {c.get('Name','?')}: {state}\")
+          " 2>/dev/null || true)
+
+          if [ -n "$UNHEALTHY" ]; then
+            echo "$UNHEALTHY"
+            echo "⚠️ 部分容器状态异常"
+            exit 1
+          else
+            echo "✅ 所有容器运行正常"
+          fi
