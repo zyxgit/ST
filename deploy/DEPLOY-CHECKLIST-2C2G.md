@@ -407,38 +407,18 @@ sudo ufw status
 
 ### 11.1 配置域名 + HTTPS
 
+Nginx 配置见 `deploy/nginx/nginx.conf`，包含 HTTP→HTTPS 重定向和反向代理（前端 28080、Gateway 25000）。
+
 ```bash
 # 安装 Nginx + Certbot
 sudo apt install -y nginx certbot python3-certbot-nginx
 
-# 配置 Nginx 反向代理
-sudo vim /etc/nginx/sites-available/st
-```
+# 将 nginx.conf 复制到系统目录
+sudo cp deploy/nginx/nginx.conf /etc/nginx/sites-available/st
+sudo ln -sf /etc/nginx/sites-available/st /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl enable --now nginx
 
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:280;
-    }
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:25000/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-```
-
-```bash
-sudo ln -s /etc/nginx/sites-available/st /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl enable --now nginx
-
-# 申请证书
+# 申请证书（替换 your-domain.com）
 sudo certbot --nginx -d your-domain.com
 ```
 
