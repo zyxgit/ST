@@ -1,9 +1,5 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using ST.MS.Payment.Application.Dto;
 using ST.MS.Payment.Application.Services;
-using ST.Shared.WebApi.Controller;
 
 namespace ST.MS.Payment.Api.Controllers;
 
@@ -25,7 +21,7 @@ public class PaymentsController : AbstractControllerBase
 	/// 模拟支付成功
 	/// </summary>
 	[HttpPost("mock/pay")]
-	[Authorize(Policy = "perm:payment:order:pay", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.PaymentOrderPay)]
 	public async Task<ActionResult<PaymentDto>> MockPay([FromQuery] Guid orderId, CancellationToken ct)
 	{
 		var payment = await _paymentService.MockPayAsync(orderId, ct);
@@ -39,7 +35,7 @@ public class PaymentsController : AbstractControllerBase
 	/// 模拟支付失败
 	/// </summary>
 	[HttpPost("mock/fail")]
-	[Authorize(Policy = "perm:payment:order:pay", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.PaymentOrderPay)]
 	public async Task<ActionResult<PaymentDto>> MockFail(
 		[FromQuery] Guid orderId,
 		[FromQuery] string reason = "模拟支付失败",
@@ -56,7 +52,7 @@ public class PaymentsController : AbstractControllerBase
 	/// 查询支付记录（按订单 ID）
 	/// </summary>
 	[HttpGet("{orderId:guid}")]
-	[Authorize(Policy = "perm:payment:record:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.PaymentRecordQuery)]
 	public async Task<ActionResult<PaymentDto>> GetPayment(Guid orderId, CancellationToken ct)
 	{
 		var payment = await _paymentService.GetPaymentAsync(orderId, ct);
@@ -73,7 +69,7 @@ public class PaymentsController : AbstractControllerBase
 	/// 查询支付记录（按订单号）
 	/// </summary>
 	[HttpGet("by-order-no/{orderNo}")]
-	[Authorize(Policy = "perm:payment:record:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.PaymentRecordQuery)]
 	public async Task<ActionResult<PaymentDto>> GetPaymentByOrderNo(string orderNo, CancellationToken ct)
 	{
 		var payment = await _paymentService.GetPaymentByOrderNoAsync(orderNo, ct);

@@ -77,6 +77,7 @@ public sealed class InfraModule : ServiceModule
 	private const string FileQueryPermissionId = "11111111-1111-1111-1111-111111111612";
 	private const string FileDeletePermissionId = "11111111-1111-1111-1111-111111111616";
 	private const string FileUploadPermissionId = "11111111-1111-1111-1111-111111111617";
+	private const string FileUploadTestPermissionId = "11111111-1111-1111-1111-111111111602";
 
 	public override void ConfigureServices(IServiceCollection services)
 	{
@@ -242,7 +243,8 @@ public sealed class InfraModule : ServiceModule
 					('{FileMenuPermissionId}'::uuid),
 					('{FileQueryPermissionId}'::uuid),
 					('{FileUploadPermissionId}'::uuid),
-					('{FileDeletePermissionId}'::uuid)
+					('{FileDeletePermissionId}'::uuid),
+					('{FileUploadTestPermissionId}'::uuid)
 				) AS seeded(permission_id)
 				WHERE NOT EXISTS (
 					SELECT 1

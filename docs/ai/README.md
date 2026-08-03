@@ -108,3 +108,4 @@ AI 接到用户需求后，必须先进行审查：
 - 禁止让文档与代码中的路径、服务名、路由、配置键不一致。
 - 禁止新服务未接入 Gateway/Aspire/Docker Compose 就标记完成。
 - 禁止新接口未验证下游直连路径和 Gateway 外部路径就标记完成。
+- 禁止在 `[Authorize]` 中手写 `"perm:xxx"` 字符串，必须使用 `[PermissionAuthorize(Permission.XXX)]`。

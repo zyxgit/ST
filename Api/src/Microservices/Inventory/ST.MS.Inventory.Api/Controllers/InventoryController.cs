@@ -1,12 +1,8 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ST.Infra.Redis.Inventory;
 using ST.MS.Inventory.Application.Dto;
 using ST.MS.Inventory.Application.Services;
 using ST.MS.Inventory.Infra.DbContext;
-using ST.Shared.WebApi.Controller;
 
 namespace ST.MS.Inventory.Api.Controllers;
 
@@ -34,7 +30,7 @@ public class InventoryController : AbstractControllerBase
 	/// SKU 列表
 	/// </summary>
 	[HttpGet]
-	[Authorize(Policy = "perm:inventory:sku:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.InventorySkuQuery)]
 	public async Task<ActionResult<List<SkuDto>>> GetSkus(CancellationToken ct)
 	{
 		var skus = await _inventoryService.GetSkusAsync(ct);
@@ -45,7 +41,7 @@ public class InventoryController : AbstractControllerBase
 	/// 创建 SKU
 	/// </summary>
 	[HttpPost]
-	[Authorize(Policy = "perm:inventory:sku:create", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.InventorySkuCreate)]
 	public async Task<ActionResult<SkuDto>> CreateSku([FromBody] CreateSkuDto input, CancellationToken ct)
 	{
 		var sku = await _inventoryService.CreateSkuAsync(input, ct);
@@ -56,7 +52,7 @@ public class InventoryController : AbstractControllerBase
 	/// 增加库存
 	/// </summary>
 	[HttpPost("{skuId:guid}/stock/increase")]
-	[Authorize(Policy = "perm:inventory:sku:stock", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.InventorySkuStock)]
 	public async Task<ActionResult<SkuDto>> IncreaseStock(Guid skuId, [FromQuery] int quantity, CancellationToken ct)
 	{
 		if (quantity <= 0)
@@ -72,7 +68,7 @@ public class InventoryController : AbstractControllerBase
 	/// 扣减库存
 	/// </summary>
 	[HttpPost("{skuId:guid}/stock/deduct")]
-	[Authorize(Policy = "perm:inventory:sku:stock", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.InventorySkuStock)]
 	public async Task<ActionResult<SkuDto>> DeductStock(Guid skuId, [FromQuery] int quantity, CancellationToken ct)
 	{
 		if (quantity <= 0)
@@ -88,7 +84,7 @@ public class InventoryController : AbstractControllerBase
 	/// 查询库存
 	/// </summary>
 	[HttpGet("{skuId:guid}/stock")]
-	[Authorize(Policy = "perm:inventory:sku:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.InventorySkuQuery)]
 	public async Task<ActionResult<SkuDto>> GetStock(Guid skuId, CancellationToken ct)
 	{
 		var sku = await _inventoryService.GetSkuAsync(skuId, ct);
@@ -105,7 +101,7 @@ public class InventoryController : AbstractControllerBase
 	/// 诊断：同时查 DB 和 Redis 库存，对比数据一致性
 	/// </summary>
 	[HttpGet("debug/db-stock")]
-	[Authorize(Policy = "perm:inventory:sku:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.InventorySkuQuery)]
 	public async Task<ActionResult> GetDbStock(CancellationToken ct)
 	{
 		var skus = await _dbContext.Skus

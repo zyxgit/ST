@@ -49,6 +49,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function refreshMenuTree() {
     const menus = await getCurrentUserMenuTree()
     menuTree.value = menus
+    console.log('Menu tree refreshed:', menus)
     return menus
   }
 

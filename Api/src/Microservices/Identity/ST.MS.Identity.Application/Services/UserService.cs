@@ -452,10 +452,10 @@ public class UserService : AbstractAppService, IUserService
 		else
 		{
 			user.Disable("admin_disable");
-			await RevokeRefreshTokensAsync(user.Id, "admin-disable");
 		}
 
 		await _dbContext.SaveChangesAsync();
+		await RevokeRefreshTokensAsync(id, "role-change");
 		await InvalidatePermissionCacheAsync(id);
 	}
 

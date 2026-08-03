@@ -7,7 +7,6 @@ using ST.MS.Identity.Application;
 using ST.MS.Identity.Application.Options;
 using ST.MS.Identity.Domain;
 using ST.MS.Identity.Infra;
-using ST.Shared.WebApi.Extensions;
 using ST.Shared.WebApi.Extensions.OpenApi;
 
 try

@@ -1,11 +1,6 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using ST.MS.Identity.Application.Dtos.User;
 using ST.MS.Identity.Application.IServices;
-using ST.Shared.Attributes;
 using ST.Shared.Security;
-using ST.Shared.WebApi.Controller;
 
 namespace ST.MS.Identity.Api.Controllers;
 
@@ -89,7 +84,7 @@ public class UserController : AbstractControllerBase
 	/// 用户下拉选项
 	/// </summary>
 	[HttpGet("users/options")]
-	[Authorize(Policy = "perm:system:user:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.UserQuery)]
 	public async Task<IActionResult> Users()
 	{
 		var list = await _userService.GetUsersAsync();
@@ -100,7 +95,7 @@ public class UserController : AbstractControllerBase
 	/// 角色下拉选项
 	/// </summary>
 	[HttpGet("roles/options")]
-	[Authorize(Policy = "perm:system:role:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.RoleQuery)]
 	public async Task<IActionResult> RoleOptions()
 	{
 		var list = await _userService.GetRoleOptionsAsync();
@@ -111,7 +106,7 @@ public class UserController : AbstractControllerBase
 	/// 用户分页查询
 	/// </summary>
 	[HttpGet("users")]
-	[Authorize(Policy = "perm:system:user:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.UserQuery)]
 	public async Task<IActionResult> GetUserPage([FromQuery] UserQueryInputDto input)
 	{
 		var result = await _userService.GetUserPageAsync(input);
@@ -122,7 +117,7 @@ public class UserController : AbstractControllerBase
 	/// 用户详情
 	/// </summary>
 	[HttpGet("users/{id:guid}")]
-	[Authorize(Policy = "perm:system:user:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.UserQuery)]
 	public async Task<IActionResult> GetUser(Guid id)
 	{
 		var result = await _userService.GetUserDetailAsync(id);
@@ -133,7 +128,7 @@ public class UserController : AbstractControllerBase
 	/// 新增用户
 	/// </summary>
 	[HttpPost("users")]
-	[Authorize(Policy = "perm:system:user:create", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.UserCreate)]
 	[OperationLog("新增用户", RecordRequest = true, RecordResponse = false)]
 	public async Task<IActionResult> CreateUser(CreateUserInputDto input)
 	{
@@ -145,7 +140,7 @@ public class UserController : AbstractControllerBase
 	/// 编辑用户
 	/// </summary>
 	[HttpPut("users/{id:guid}")]
-	[Authorize(Policy = "perm:system:user:update", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.UserUpdate)]
 	[OperationLog("编辑用户", RecordRequest = true, RecordResponse = false)]
 	public async Task UpdateUser(Guid id, UpdateUserInputDto input)
 	{
@@ -156,7 +151,7 @@ public class UserController : AbstractControllerBase
 	/// 检查邮箱是否已存在
 	/// </summary>
 	[HttpGet("users/email-exists")]
-	[Authorize(Policy = "perm:system:user:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.UserQuery)]
 	public async Task<IActionResult> EmailExists([FromQuery] string email, [FromQuery] Guid? excludeUserId = null)
 	{
 		var exists = await _userService.EmailExistsAsync(email, excludeUserId);
@@ -187,7 +182,7 @@ public class UserController : AbstractControllerBase
 	/// 启用/禁用用户
 	/// </summary>
 	[HttpPut("users/{id:guid}/status")]
-	[Authorize(Policy = "perm:system:user:change-status", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.UserChangeStatus)]
 	[OperationLog("变更用户状态", RecordRequest = true, RecordResponse = false)]
 	public async Task ChangeUserStatus(Guid id, ChangeUserStatusInputDto input)
 	{
@@ -198,7 +193,7 @@ public class UserController : AbstractControllerBase
 	/// 重置密码
 	/// </summary>
 	[HttpPut("users/{id:guid}/password/reset")]
-	[Authorize(Policy = "perm:system:user:reset-password", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.UserResetPassword)]
 	[OperationLog("重置用户密码", RecordRequest = true, RecordResponse = false)]
 	public async Task ResetPassword(Guid id, ResetUserPasswordInputDto input)
 	{
@@ -209,7 +204,7 @@ public class UserController : AbstractControllerBase
 	/// 删除用户
 	/// </summary>
 	[HttpDelete("users/{id:guid}")]
-	[Authorize(Policy = "perm:system:user:delete", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.UserDelete)]
 	[OperationLog("删除用户", RecordRequest = true, RecordResponse = false)]
 	public async Task DeleteUser(Guid id)
 	{

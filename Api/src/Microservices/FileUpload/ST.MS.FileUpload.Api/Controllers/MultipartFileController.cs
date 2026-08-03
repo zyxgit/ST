@@ -1,12 +1,6 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using ST.MS.FileUpload.Application.Dtos;
 using ST.MS.FileUpload.Application.IServices;
-using ST.Shared.Attributes;
-using ST.Shared.Exceptions;
 using ST.Shared.Security;
-using ST.Shared.WebApi.Controller;
 
 namespace ST.MS.FileUpload.Api.Controllers;
 
@@ -30,7 +24,7 @@ public sealed class MultipartFileController : AbstractControllerBase
 	/// </summary>
 	/// <param name="request">上传参数</param>
 	[HttpPost("init")]
-	[Authorize(Policy = "perm:system:file:upload", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.FileUpload)]
 	[OperationLog("初始化分片上传", RecordRequest = true, RecordResponse = true)]
 	public async Task<IActionResult> InitUpload([FromBody] InitUploadRequestDto request)
 	{
@@ -44,7 +38,7 @@ public sealed class MultipartFileController : AbstractControllerBase
 	/// </summary>
 	/// <param name="uploadId">上传会话 ID</param>
 	[HttpGet("{uploadId:guid}/status")]
-	[Authorize(Policy = "perm:system:file:upload", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.FileUpload)]
 	public async Task<IActionResult> GetStatus(Guid uploadId)
 	{
 		var result = await _multipartUploadService.GetUploadStatusAsync(uploadId);
@@ -59,7 +53,7 @@ public sealed class MultipartFileController : AbstractControllerBase
 	/// <param name="file">分片文件</param>
 	/// <param name="chunkHash">分片 SHA256 Hash（可选）</param>
 	[HttpPost("{uploadId:guid}/chunks/{chunkIndex:int}")]
-	[Authorize(Policy = "perm:system:file:upload", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.FileUpload)]
 	[RequestSizeLimit(100 * 1024 * 1024)] // 100MB 单分片上限
 	[OperationLog("上传分片", RecordRequest = true, RecordResponse = false)]
 	public async Task<IActionResult> UploadChunk(
@@ -90,7 +84,7 @@ public sealed class MultipartFileController : AbstractControllerBase
 	/// </summary>
 	/// <param name="uploadId">上传会话 ID</param>
 	[HttpPost("{uploadId:guid}/complete")]
-	[Authorize(Policy = "perm:system:file:upload", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.FileUpload)]
 	[OperationLog("完成分片上传", RecordRequest = true, RecordResponse = true)]
 	public async Task<IActionResult> CompleteUpload(Guid uploadId)
 	{
@@ -103,7 +97,7 @@ public sealed class MultipartFileController : AbstractControllerBase
 	/// </summary>
 	/// <param name="request">Hash 和文件大小</param>
 	[HttpPost("check-by-hash")]
-	[Authorize(Policy = "perm:system:file:upload", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.FileUpload)]
 	public async Task<IActionResult> CheckByHash([FromBody] CheckByHashRequestDto request)
 	{
 		var result = await _multipartUploadService.CheckByHashAsync(request);
@@ -115,7 +109,7 @@ public sealed class MultipartFileController : AbstractControllerBase
 	/// </summary>
 	/// <param name="uploadId">上传会话 ID</param>
 	[HttpDelete("{uploadId:guid}")]
-	[Authorize(Policy = "perm:system:file:upload", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.FileUpload)]
 	[OperationLog("取消分片上传", RecordRequest = true, RecordResponse = false)]
 	public async Task<IActionResult> CancelUpload(Guid uploadId)
 	{

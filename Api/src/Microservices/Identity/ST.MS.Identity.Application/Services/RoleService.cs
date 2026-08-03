@@ -141,6 +141,7 @@ public sealed class RoleService : AbstractAppService, IRoleService
 
 		ApplyRolePermissions(role, permissionIds);
 		await _dbContext.SaveChangesAsync();
+		await RevokeRefreshTokensForRoleAsync(id);
 		await InvalidateAllPermissionCachesAsync();
 	}
 
@@ -151,6 +152,7 @@ public sealed class RoleService : AbstractAppService, IRoleService
 
 		ApplyRolePermissions(role, permissionIds);
 		await _dbContext.SaveChangesAsync();
+		await RevokeRefreshTokensForRoleAsync(id);
 		await InvalidateAllPermissionCachesAsync();
 	}
 
@@ -245,6 +247,32 @@ public sealed class RoleService : AbstractAppService, IRoleService
 		}
 
 		return value.Trim();
+	}
+
+	/// <summary>
+	/// 撤销指定角色下所有用户的 RefreshToken，强制重新登录获取新权限。
+	/// </summary>
+	private async Task RevokeRefreshTokensForRoleAsync(Guid roleId)
+	{
+		var now = DateTime.UtcNow;
+		var userIds = await _dbContext.Users
+			.Where(u => u.UserRoles.Any(ur => ur.RoleId == roleId))
+			.Select(u => u.Id)
+			.ToListAsync();
+
+		if (userIds.Count == 0)
+		{
+			return;
+		}
+
+		var tokens = await _dbContext.RefreshTokens
+			.Where(x => userIds.Contains(x.UserId) && x.RevokedAtUtc == null)
+			.ToListAsync();
+
+		foreach (var token in tokens)
+		{
+			token.Revoke(now, "role-permission-change", null);
+		}
 	}
 
 	/// <summary>

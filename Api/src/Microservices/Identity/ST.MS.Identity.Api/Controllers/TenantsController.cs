@@ -1,10 +1,5 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using ST.MS.Identity.Application.Dtos.Tenant;
 using ST.MS.Identity.Application.IServices;
-using ST.Shared.Attributes;
-using ST.Shared.WebApi.Controller;
 
 namespace ST.MS.Identity.Api.Controllers;
 
@@ -22,7 +17,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// 分页查询租户
 	/// </summary>
 	[HttpGet]
-	[Authorize(Policy = "perm:system:tenant:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.TenantQuery)]
 	public async Task<IActionResult> GetPage([FromQuery] TenantQueryInputDto input)
 	{
 		var result = await _tenantService.GetPageAsync(input);
@@ -33,7 +28,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// 租户详情
 	/// </summary>
 	[HttpGet("{id:guid}")]
-	[Authorize(Policy = "perm:system:tenant:query", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.TenantQuery)]
 	public async Task<IActionResult> GetDetail(Guid id)
 	{
 		var result = await _tenantService.GetDetailAsync(id);
@@ -44,7 +39,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// 创建租户
 	/// </summary>
 	[HttpPost]
-	[Authorize(Policy = "perm:system:tenant:create", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.TenantCreate)]
 	[OperationLog("新增租户", RecordRequest = true, RecordResponse = false)]
 	public async Task<IActionResult> Create(CreateTenantInputDto input)
 	{
@@ -56,7 +51,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// 更新租户信息
 	/// </summary>
 	[HttpPut("{id:guid}")]
-	[Authorize(Policy = "perm:system:tenant:update", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.TenantUpdate)]
 	[OperationLog("编辑租户", RecordRequest = true, RecordResponse = false)]
 	public async Task Update(Guid id, UpdateTenantInputDto input)
 	{
@@ -67,7 +62,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// 激活租户
 	/// </summary>
 	[HttpPost("{id:guid}/activate")]
-	[Authorize(Policy = "perm:system:tenant:update", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.TenantUpdate)]
 	[OperationLog("激活租户")]
 	public async Task Activate(Guid id)
 	{
@@ -78,7 +73,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// 暂停租户
 	/// </summary>
 	[HttpPost("{id:guid}/suspend")]
-	[Authorize(Policy = "perm:system:tenant:update", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.TenantUpdate)]
 	[OperationLog("暂停租户")]
 	public async Task Suspend(Guid id)
 	{
@@ -89,7 +84,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// 删除租户
 	/// </summary>
 	[HttpDelete("{id:guid}")]
-	[Authorize(Policy = "perm:system:tenant:delete", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.TenantDelete)]
 	[OperationLog("删除租户")]
 	public async Task Delete(Guid id)
 	{
@@ -100,7 +95,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// 添加租户用户
 	/// </summary>
 	[HttpPost("{tenantId:guid}/users")]
-	[Authorize(Policy = "perm:system:tenant:user", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.TenantUser)]
 	[OperationLog("添加租户用户", RecordRequest = true)]
 	public async Task AddUser(Guid tenantId, AddTenantUserInputDto input)
 	{
@@ -111,7 +106,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// 移除租户用户
 	/// </summary>
 	[HttpDelete("{tenantId:guid}/users/{userId:guid}")]
-	[Authorize(Policy = "perm:system:tenant:user", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.TenantUser)]
 	[OperationLog("移除租户用户")]
 	public async Task RemoveUser(Guid tenantId, Guid userId)
 	{
@@ -122,7 +117,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// 查询租户用户列表
 	/// </summary>
 	[HttpGet("{tenantId:guid}/users")]
-	[Authorize(Policy = "perm:system:tenant:user", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.TenantUser)]
 	public async Task<IActionResult> GetUsers(Guid tenantId)
 	{
 		var result = await _tenantService.GetUsersAsync(tenantId);
@@ -133,7 +128,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// 查询租户配额
 	/// </summary>
 	[HttpGet("{tenantId:guid}/quota")]
-	[Authorize(Policy = "perm:system:tenant:quota", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.TenantQuota)]
 	public async Task<IActionResult> GetQuota(Guid tenantId)
 	{
 		var result = await _tenantService.GetQuotaAsync(tenantId);
@@ -144,7 +139,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// 更新租户配额
 	/// </summary>
 	[HttpPut("{tenantId:guid}/quota")]
-	[Authorize(Policy = "perm:system:tenant:quota", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+	[PermissionAuthorize(Permission.TenantQuota)]
 	[OperationLog("更新租户配额", RecordRequest = true)]
 	public async Task UpdateQuota(Guid tenantId, UpdateTenantQuotaInputDto input)
 	{
