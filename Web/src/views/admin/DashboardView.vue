@@ -2,7 +2,7 @@
 import type { EChartsOption } from 'echarts'
 import * as echarts from 'echarts'
 import { NCard, NGrid, NGridItem, NStatistic } from 'naive-ui'
-import { nextTick, onMounted, ref } from 'vue'
+import { h, nextTick, onMounted, ref } from 'vue'
 
 import PageSection from '@/components/common/PageSection.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -25,6 +25,14 @@ const chartOptions: EChartsOption = {
       color: '#18a058',
     },
   ],
+}
+
+// 1. 定义一个返回 VNode 的渲染函数
+const renderCardTitle = () => {
+  return h('div', [
+    h('span', '近 7 日请求趋势 '),
+    h('span', { style: 'color: #999; font-size: 12px;' },'（示例模板非真实数据）'),
+  ])
 }
 
 onMounted(async () => {
@@ -65,8 +73,8 @@ onMounted(async () => {
       </n-grid-item>
     </n-grid>
 
-    <n-card class="page-card" :bordered="false" title="近 7 日请求趋势">
-      <div ref="chartRef" style="height: 360px" />
+    <n-card class="page-card" :bordered="false" :title="renderCardTitle" content-style="padding: 0;" >
+      <div ref="chartRef" style="height: 360px"></div>
     </n-card>
   </page-section>
 </template>

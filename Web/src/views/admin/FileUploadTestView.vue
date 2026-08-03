@@ -7,7 +7,7 @@ import { uploadFile } from '@/api/file'
 import { initMultipartUpload, uploadChunk, completeUpload, checkByHash } from '@/api/multipart-upload'
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024   // 100MB
-const MAX_CHUNK_SIZE = 1024 * 1024 * 1024 // 1GB
+const MAX_CHUNK_SIZE = 500 * 1024 * 1024  // 500MB
 const CHUNK_SIZE = 5 * 1024 * 1024        // 5MB
 
 // 图片上传
@@ -246,7 +246,7 @@ async function handleChunkUpload() {
       </n-card>
 
       <!-- 分片上传 -->
-      <n-card title="分片上传（进度条，最大1GB）" :bordered="false">
+      <n-card title="分片上传（进度条，最大500MB，文件保留10分钟）" :bordered="false">
         <n-space vertical :size="16">
           <input ref="chunkInputRef" type="file" style="display: none" @change="handleChunkSelect" />
           <n-button @click="chunkInputRef?.click()">选择文件</n-button>
@@ -286,7 +286,7 @@ async function handleChunkUpload() {
           </div>
 
           <n-text depth="3" style="font-size: 12px">
-            支持格式：所有文件类型（图片、文档、视频、音频、压缩包等）
+            支持格式：所有文件类型（图片、文档、视频、音频、压缩包等）。未完成的上传将在 10 分钟后自动清理。
           </n-text>
         </n-space>
       </n-card>

@@ -64,7 +64,7 @@ public sealed class MultipartCleanupService : BackgroundService
 	}
 
 	/// <summary>
-	/// 扫描并清理过期和失败的上传会话。
+	/// 扫描并清理过期、失败和已完成的上传会话。
 	/// </summary>
 	private async Task CleanupExpiredSessionsAsync(CancellationToken ct)
 	{
@@ -76,6 +76,7 @@ public sealed class MultipartCleanupService : BackgroundService
 		var batchSize = _options.Value.BatchSize;
 		var now = DateTime.UtcNow;
 		var failedThreshold = now.AddSeconds(-_options.Value.FailedRetentionSeconds);
+		var completedThreshold = now.AddSeconds(-_options.Value.CompletedRetentionSeconds);
 
 		// 1. 过期的 Uploading 会话（超过 ExpiresAtUtc）
 		var expiredSessions = await dbContext.UploadSessions
@@ -93,21 +94,39 @@ public sealed class MultipartCleanupService : BackgroundService
 			.Take(batchSize)
 			.ToListAsync(ct);
 
-		var allSessions = expiredSessions.Concat(failedSessions).ToList();
+		// 3. 已完成的会话（超过保留时间，清理会话记录和合并后的文件）
+		var completedSessions = await dbContext.UploadSessions
+			.Where(s => s.Status == UploadStatus.Completed && s.UpdatedAtUtc < completedThreshold)
+			.OrderBy(s => s.UpdatedAtUtc)
+			.Take(batchSize)
+			.ToListAsync(ct);
+
+		// 加载关联的文件实体
+		var completedFileIds = completedSessions
+			.Where(s => s.FileId.HasValue)
+			.Select(s => s.FileId!.Value)
+			.ToList();
+		var completedFiles = completedFileIds.Count > 0
+			? await dbContext.Files.Where(f => completedFileIds.Contains(f.Id)).ToListAsync(ct)
+			: [];
+
+		var allSessionsWithChunks = expiredSessions.Concat(failedSessions).ToList();
+		var allSessions = allSessionsWithChunks.Concat(completedSessions).ToList();
 
 		if (allSessions.Count == 0)
 		{
-			_logger.LogDebug("No expired or failed sessions to clean up.");
+			_logger.LogDebug("No sessions to clean up.");
 			return;
 		}
 
-		_logger.LogInformation("Found {Count} sessions to clean up ({Expired} expired, {Failed} failed).",
-			allSessions.Count, expiredSessions.Count, failedSessions.Count);
+		_logger.LogInformation("Found {Count} sessions to clean up ({Expired} expired, {Failed} failed, {Completed} completed).",
+			allSessions.Count, expiredSessions.Count, failedSessions.Count, completedSessions.Count);
 
 		var cleanedCount = 0;
 		var chunkDeleteFailed = 0;
 
-		foreach (var session in allSessions)
+		// 清理过期和失败的会话（删除分片文件）
+		foreach (var session in allSessionsWithChunks)
 		{
 			ct.ThrowIfCancellationRequested();
 
@@ -152,6 +171,42 @@ public sealed class MultipartCleanupService : BackgroundService
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Failed to clean up session {UploadId}.", session.Id);
+			}
+		}
+
+		// 清理已完成的会话（根据配置决定是否删除合并后的文件）
+		var deleteFiles = _options.Value.DeleteCompletedFiles;
+		foreach (var session in completedSessions)
+		{
+			ct.ThrowIfCancellationRequested();
+
+			try
+			{
+				// 删除合并后的文件
+				if (deleteFiles && session.FileId.HasValue)
+				{
+					var fileEntity = completedFiles.FirstOrDefault(f => f.Id == session.FileId.Value);
+					if (fileEntity is not null)
+					{
+						try
+						{
+							await fileStorageService.DeleteAsync(fileEntity.FilePath);
+						}
+						catch (Exception ex)
+						{
+							_logger.LogWarning(ex, "Failed to delete merged file {FilePath} for session {UploadId}.",
+								fileEntity.FilePath, session.Id);
+						}
+						dbContext.Files.Remove(fileEntity);
+					}
+				}
+
+				dbContext.UploadSessions.Remove(session);
+				cleanedCount++;
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Failed to clean up completed session {UploadId}.", session.Id);
 			}
 		}
 

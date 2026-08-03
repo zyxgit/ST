@@ -5,6 +5,7 @@ using ST.MS.FileUpload.Application.IServices;
 using ST.MS.FileUpload.Domain;
 using ST.MS.FileUpload.Domain.Entities;
 using ST.MS.FileUpload.Domain.Services;
+using ST.Shared.Application.Dtos;
 using ST.Shared.Security;
 
 namespace ST.MS.FileUpload.Api.Controllers;
@@ -33,7 +34,7 @@ public sealed class FileController : AbstractControllerBase
     /// </summary>
     [HttpGet]
     [PermissionAuthorize(Permission.FileQuery)]
-    public async Task<IActionResult> GetList([FromQuery] FileQueryInputDto input)
+    public async Task<ActionResult<PagedResultDto<FileInfoDto>>> GetList([FromQuery] FileQueryInputDto input)
     {
         var result = await _fileAppService.GetListAsync(input);
         return Ok(result);
@@ -49,6 +50,7 @@ public sealed class FileController : AbstractControllerBase
     [RequestSizeLimit(200 * 1024 * 1024)] // 200MB 硬上限，实际限制由配置控制
     [ServiceFilter<FileUploadValidationFilter>]
     [OperationLog("文件上传", RecordRequest = true, RecordResponse = true)]
+    [ProducesResponseType(typeof(FileUploadResultDto), 201)]
     public async Task<IActionResult> Upload(IFormFile file, [FromForm] FileAccessLevel? accessLevel = null)
     {
         if (file is null || file.Length == 0)
@@ -78,7 +80,7 @@ public sealed class FileController : AbstractControllerBase
     /// </summary>
     [HttpGet("{id:guid}")]
     [PermissionAuthorize(Permission.FileQuery)]
-    public async Task<IActionResult> Get(Guid id)
+    public async Task<ActionResult<FileInfoDto>> Get(Guid id)
     {
         var result = await _fileAppService.GetAsync(id);
         return Ok(result);

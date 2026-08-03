@@ -1,5 +1,6 @@
 using ST.MS.Identity.Application.Dtos.Tenant;
 using ST.MS.Identity.Application.IServices;
+using ST.Shared.Application.Dtos;
 
 namespace ST.MS.Identity.Api.Controllers;
 
@@ -18,7 +19,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// </summary>
 	[HttpGet]
 	[PermissionAuthorize(Permission.TenantQuery)]
-	public async Task<IActionResult> GetPage([FromQuery] TenantQueryInputDto input)
+	public async Task<ActionResult<PagedResultDto<TenantListItemDto>>> GetPage([FromQuery] TenantQueryInputDto input)
 	{
 		var result = await _tenantService.GetPageAsync(input);
 		return Ok(result);
@@ -29,7 +30,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// </summary>
 	[HttpGet("{id:guid}")]
 	[PermissionAuthorize(Permission.TenantQuery)]
-	public async Task<IActionResult> GetDetail(Guid id)
+	public async Task<ActionResult<TenantDetailDto>> GetDetail(Guid id)
 	{
 		var result = await _tenantService.GetDetailAsync(id);
 		return Ok(result);
@@ -41,10 +42,10 @@ public sealed class TenantsController : AbstractControllerBase
 	[HttpPost]
 	[PermissionAuthorize(Permission.TenantCreate)]
 	[OperationLog("新增租户", RecordRequest = true, RecordResponse = false)]
-	public async Task<IActionResult> Create(CreateTenantInputDto input)
+	public async Task<ActionResult<Guid>> Create(CreateTenantInputDto input)
 	{
 		var id = await _tenantService.CreateAsync(input);
-		return Ok(new { Id = id });
+		return Ok(id);
 	}
 
 	/// <summary>
@@ -118,7 +119,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// </summary>
 	[HttpGet("{tenantId:guid}/users")]
 	[PermissionAuthorize(Permission.TenantUser)]
-	public async Task<IActionResult> GetUsers(Guid tenantId)
+	public async Task<ActionResult<IReadOnlyList<TenantUserDto>>> GetUsers(Guid tenantId)
 	{
 		var result = await _tenantService.GetUsersAsync(tenantId);
 		return Ok(result);
@@ -129,7 +130,7 @@ public sealed class TenantsController : AbstractControllerBase
 	/// </summary>
 	[HttpGet("{tenantId:guid}/quota")]
 	[PermissionAuthorize(Permission.TenantQuota)]
-	public async Task<IActionResult> GetQuota(Guid tenantId)
+	public async Task<ActionResult<TenantQuotaDto>> GetQuota(Guid tenantId)
 	{
 		var result = await _tenantService.GetQuotaAsync(tenantId);
 		return Ok(result);

@@ -12,11 +12,17 @@ public sealed class MultipartCleanupOptions
 	public bool Enabled { get; set; } = true;
 
 	/// <summary>轮询间隔（秒）</summary>
-	public int PollingIntervalSeconds { get; set; } = 300;
+	public int PollingIntervalSeconds { get; set; } = 60;
 
 	/// <summary>每批处理的会话数量</summary>
 	public int BatchSize { get; set; } = 20;
 
-	/// <summary>Failed 状态会话的保留时间（秒），超过此时间才清理，默认 1 小时</summary>
-	public int FailedRetentionSeconds { get; set; } = 3600;
+	/// <summary>Failed 状态会话的保留时间（秒），超过此时间才清理，默认 10 分钟</summary>
+	public int FailedRetentionSeconds { get; set; } = 600;
+
+	/// <summary>Completed 状态会话的保留时间（秒），超过此时间才清理文件，默认 10 分钟</summary>
+	public int CompletedRetentionSeconds { get; set; } = 600;
+
+	/// <summary>是否删除已完成会话的合并文件，默认 true</summary>
+	public bool DeleteCompletedFiles { get; set; } = true;
 }

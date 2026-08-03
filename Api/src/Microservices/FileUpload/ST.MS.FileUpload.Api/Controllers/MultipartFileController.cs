@@ -26,6 +26,7 @@ public sealed class MultipartFileController : AbstractControllerBase
 	[HttpPost("init")]
 	[PermissionAuthorize(Permission.FileUpload)]
 	[OperationLog("初始化分片上传", RecordRequest = true, RecordResponse = true)]
+	[ProducesResponseType(typeof(InitUploadResultDto), 201)]
 	public async Task<IActionResult> InitUpload([FromBody] InitUploadRequestDto request)
 	{
 		var userId = _userContext.UserId ?? throw new BusinessException("用户未登录");
@@ -39,7 +40,7 @@ public sealed class MultipartFileController : AbstractControllerBase
 	/// <param name="uploadId">上传会话 ID</param>
 	[HttpGet("{uploadId:guid}/status")]
 	[PermissionAuthorize(Permission.FileUpload)]
-	public async Task<IActionResult> GetStatus(Guid uploadId)
+	public async Task<ActionResult<UploadStatusDto>> GetStatus(Guid uploadId)
 	{
 		var result = await _multipartUploadService.GetUploadStatusAsync(uploadId);
 		return Ok(result);
@@ -56,6 +57,7 @@ public sealed class MultipartFileController : AbstractControllerBase
 	[PermissionAuthorize(Permission.FileUpload)]
 	[RequestSizeLimit(100 * 1024 * 1024)] // 100MB 单分片上限
 	[OperationLog("上传分片", RecordRequest = true, RecordResponse = false)]
+	[ProducesResponseType(typeof(object), 200)]
 	public async Task<IActionResult> UploadChunk(
 		Guid uploadId,
 		int chunkIndex,
@@ -86,6 +88,7 @@ public sealed class MultipartFileController : AbstractControllerBase
 	[HttpPost("{uploadId:guid}/complete")]
 	[PermissionAuthorize(Permission.FileUpload)]
 	[OperationLog("完成分片上传", RecordRequest = true, RecordResponse = true)]
+	[ProducesResponseType(typeof(object), 200)]
 	public async Task<IActionResult> CompleteUpload(Guid uploadId)
 	{
 		await _multipartUploadService.CompleteUploadAsync(uploadId);
@@ -98,7 +101,7 @@ public sealed class MultipartFileController : AbstractControllerBase
 	/// <param name="request">Hash 和文件大小</param>
 	[HttpPost("check-by-hash")]
 	[PermissionAuthorize(Permission.FileUpload)]
-	public async Task<IActionResult> CheckByHash([FromBody] CheckByHashRequestDto request)
+	public async Task<ActionResult<CheckByHashResultDto>> CheckByHash([FromBody] CheckByHashRequestDto request)
 	{
 		var result = await _multipartUploadService.CheckByHashAsync(request);
 		return Ok(result);

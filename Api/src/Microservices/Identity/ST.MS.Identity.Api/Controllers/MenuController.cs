@@ -15,14 +15,14 @@ public sealed class MenuController : AbstractControllerBase
 
 	[HttpGet("tree")]
 	[PermissionAuthorize(Permission.MenuQuery)]
-	public async Task<IActionResult> GetTree()
+	public async Task<ActionResult<MenuTreeNodeDto>> GetTree()
 	{
 		var result = await _menuService.GetTreeAsync();
 		return Ok(result);
 	}
 
 	[HttpGet("my-tree")]
-	public async Task<IActionResult> GetCurrentUserTree()
+	public async Task<ActionResult<IReadOnlyList<MenuTreeNodeDto>>> GetCurrentUserTree()
 	{
 		var result = await _menuService.GetCurrentUserTreeAsync();
 		return Ok(result);
@@ -30,7 +30,7 @@ public sealed class MenuController : AbstractControllerBase
 
 	[HttpGet("{id:guid}")]
 	[PermissionAuthorize(Permission.MenuQuery)]
-	public async Task<IActionResult> GetDetail(Guid id)
+	public async Task<ActionResult<MenuDetailDto>> GetDetail(Guid id)
 	{
 		var result = await _menuService.GetDetailAsync(id);
 		return Ok(result);
@@ -39,10 +39,10 @@ public sealed class MenuController : AbstractControllerBase
 	[HttpPost]
 	[PermissionAuthorize(Permission.MenuCreate)]
 	[OperationLog("新增菜单", RecordRequest = true, RecordResponse = false)]
-	public async Task<IActionResult> Create(CreateMenuInputDto input)
+	public async Task<ActionResult<Guid>> Create(CreateMenuInputDto input)
 	{
 		var id = await _menuService.CreateAsync(input);
-		return Ok(new { Id = id });
+		return Ok(id);
 	}
 
 	[HttpPut("{id:guid}")]

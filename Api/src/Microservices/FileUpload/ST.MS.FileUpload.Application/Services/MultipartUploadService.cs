@@ -49,8 +49,8 @@ public sealed class MultipartUploadService : IMultipartUploadService
 		if (request.FileSize <= 0)
 			throw new BusinessException("文件大小必须大于 0");
 
-		if (request.ChunkSize < 1024 * 1024 || request.ChunkSize > 100 * 1024 * 1024)
-			throw new BusinessException("分片大小必须在 1MB 到 100MB 之间");
+		if (request.ChunkSize < 1024 * 1024 || request.ChunkSize > 500 * 1024 * 1024)
+			throw new BusinessException("分片大小必须在 1MB 到 500MB 之间");
 
 		// 文件类型校验（与普通上传共用白名单配置）
 		var extension = Path.GetExtension(request.FileName);
@@ -82,15 +82,15 @@ public sealed class MultipartUploadService : IMultipartUploadService
 			AccessLevel = (FileAccessLevel)request.AccessLevel,
 			CreatedBy = userId,
 			CreatorName = userName,
-			ExpiresAtUtc = DateTime.UtcNow.AddHours(24) // 24 小时过期
+			ExpiresAtUtc = DateTime.UtcNow.AddMinutes(10) // 10 分钟过期
 		};
 
 		_dbContext.UploadSessions.Add(session);
 		await _dbContext.SaveChangesAsync();
 
-		// 初始化 Redis Set（设置 24 小时过期）
+		// 初始化 Redis Set（设置 10 分钟过期）
 		var redisKey = GetChunksRedisKey(session.Id);
-		await _redisCacheManager.SetStringAsync($"{redisKey}:init", "1", TimeSpan.FromHours(24));
+		await _redisCacheManager.SetStringAsync($"{redisKey}:init", "1", TimeSpan.FromMinutes(10));
 
 		_logger.LogInformation("Initialized multipart upload {UploadId} for file {FileName}, total chunks: {TotalChunks}",
 			session.Id, session.FileName, session.TotalChunks);
@@ -381,8 +381,8 @@ public sealed class MultipartUploadService : IMultipartUploadService
 		var db = _redisCacheManager.GetDatabase();
 		await db.SetAddAsync(redisKey, chunkIndex.ToString());
 
-		// 设置过期时间（24 小时）
-		await db.KeyExpireAsync(redisKey, TimeSpan.FromHours(24));
+		// 设置过期时间（10 分钟）
+		await db.KeyExpireAsync(redisKey, TimeSpan.FromMinutes(10));
 	}
 
 	/// <summary>
@@ -401,7 +401,7 @@ public sealed class MultipartUploadService : IMultipartUploadService
 			await db.SetAddAsync(redisKey, index.ToString());
 		}
 
-		await db.KeyExpireAsync(redisKey, TimeSpan.FromHours(24));
+		await db.KeyExpireAsync(redisKey, TimeSpan.FromMinutes(10));
 	}
 
 	/// <summary>

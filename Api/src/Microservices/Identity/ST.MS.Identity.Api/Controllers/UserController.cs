@@ -1,5 +1,6 @@
 using ST.MS.Identity.Application.Dtos.User;
 using ST.MS.Identity.Application.IServices;
+using ST.Shared.Application.Dtos;
 using ST.Shared.Security;
 
 namespace ST.MS.Identity.Api.Controllers;
@@ -52,7 +53,7 @@ public class UserController : AbstractControllerBase
 	[AllowAnonymous]
 	[HttpPost("login")]
 	[OperationLog("用户登录", RecordRequest = true, RecordResponse = false)]
-	public async Task<IActionResult> Login(UserLoginInputDto input)
+	public async Task<ActionResult<LoginResultDto>> Login(UserLoginInputDto input)
 	{
 		var result = await _userService.LoginAsync(input);
 		return Ok(result);
@@ -64,7 +65,7 @@ public class UserController : AbstractControllerBase
 	[AllowAnonymous]
 	[HttpPost("refresh")]
 	[OperationLog("刷新令牌", RecordRequest = true, RecordResponse = false)]
-	public async Task<IActionResult> Refresh(RefreshTokenInputDto input)
+	public async Task<ActionResult<LoginResultDto>> Refresh(RefreshTokenInputDto input)
 	{
 		var result = await _userService.RefreshTokenAsync(input);
 		return Ok(result);
@@ -86,7 +87,7 @@ public class UserController : AbstractControllerBase
 	/// </summary>
 	[HttpGet("users/options")]
 	[PermissionAuthorize(Permission.UserQuery)]
-	public async Task<IActionResult> Users()
+	public async Task<ActionResult<IReadOnlyList<UserOptionDto>>> Users()
 	{
 		var list = await _userService.GetUsersAsync();
 		return Ok(list);
@@ -97,7 +98,7 @@ public class UserController : AbstractControllerBase
 	/// </summary>
 	[HttpGet("roles/options")]
 	[PermissionAuthorize(Permission.RoleQuery)]
-	public async Task<IActionResult> RoleOptions()
+	public async Task<ActionResult<IReadOnlyList<RoleOptionDto>>> RoleOptions()
 	{
 		var list = await _userService.GetRoleOptionsAsync();
 		return Ok(list);
@@ -108,7 +109,7 @@ public class UserController : AbstractControllerBase
 	/// </summary>
 	[HttpGet("users")]
 	[PermissionAuthorize(Permission.UserQuery)]
-	public async Task<IActionResult> GetUserPage([FromQuery] UserQueryInputDto input)
+	public async Task<ActionResult<PagedResultDto<UserListItemDto>>> GetUserPage([FromQuery] UserQueryInputDto input)
 	{
 		var result = await _userService.GetUserPageAsync(input);
 		return Ok(result);
@@ -119,7 +120,7 @@ public class UserController : AbstractControllerBase
 	/// </summary>
 	[HttpGet("users/{id:guid}")]
 	[PermissionAuthorize(Permission.UserQuery)]
-	public async Task<IActionResult> GetUser(Guid id)
+	public async Task<ActionResult<UserDetailDto>> GetUser(Guid id)
 	{
 		var result = await _userService.GetUserDetailAsync(id);
 		return Ok(result);
@@ -131,10 +132,10 @@ public class UserController : AbstractControllerBase
 	[HttpPost("users")]
 	[PermissionAuthorize(Permission.UserCreate)]
 	[OperationLog("新增用户", RecordRequest = true, RecordResponse = false)]
-	public async Task<IActionResult> CreateUser(CreateUserInputDto input)
+	public async Task<ActionResult<Guid>> CreateUser(CreateUserInputDto input)
 	{
 		var id = await _userService.CreateUserAsync(input);
-		return Ok(new { Id = id });
+		return Ok(id);
 	}
 
 	/// <summary>
@@ -153,10 +154,10 @@ public class UserController : AbstractControllerBase
 	/// </summary>
 	[HttpGet("users/email-exists")]
 	[PermissionAuthorize(Permission.UserQuery)]
-	public async Task<IActionResult> EmailExists([FromQuery] string email, [FromQuery] Guid? excludeUserId = null)
+	public async Task<ActionResult<bool>> EmailExists([FromQuery] string email, [FromQuery] Guid? excludeUserId = null)
 	{
 		var exists = await _userService.EmailExistsAsync(email, excludeUserId);
-		return Ok(new { Exists = exists });
+		return Ok(exists);
 	}
 
 	/// <summary>
@@ -236,6 +237,7 @@ public class UserController : AbstractControllerBase
 	/// 当前登录用户信息
 	/// </summary>
 	[HttpGet("me")]
+	[ProducesResponseType(typeof(object), 200)]
 	public async Task<IActionResult> Me()
 	{
 		Guid? avatarFileId = null;

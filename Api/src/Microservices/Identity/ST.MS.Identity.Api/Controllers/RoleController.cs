@@ -1,5 +1,6 @@
 using ST.MS.Identity.Application.Dtos.Role;
 using ST.MS.Identity.Application.IServices;
+using ST.Shared.Application.Dtos;
 
 namespace ST.MS.Identity.Api.Controllers;
 
@@ -15,7 +16,7 @@ public sealed class RoleController : AbstractControllerBase
 
 	[HttpGet]
 	[PermissionAuthorize(Permission.RoleQuery)]
-	public async Task<IActionResult> GetPage([FromQuery] RoleQueryInputDto input)
+	public async Task<ActionResult<PagedResultDto<RoleListItemDto>>> GetPage([FromQuery] RoleQueryInputDto input)
 	{
 		var result = await _roleService.GetPageAsync(input);
 		return Ok(result);
@@ -23,7 +24,7 @@ public sealed class RoleController : AbstractControllerBase
 
 	[HttpGet("{id:guid}")]
 	[PermissionAuthorize(Permission.RoleQuery)]
-	public async Task<IActionResult> GetDetail(Guid id)
+	public async Task<ActionResult<RoleDetailDto>> GetDetail(Guid id)
 	{
 		var result = await _roleService.GetDetailAsync(id);
 		return Ok(result);
@@ -32,10 +33,10 @@ public sealed class RoleController : AbstractControllerBase
 	[HttpPost]
 	[PermissionAuthorize(Permission.RoleCreate)]
 	[OperationLog("新增角色", RecordRequest = true, RecordResponse = false)]
-	public async Task<IActionResult> Create(CreateRoleInputDto input)
+	public async Task<ActionResult<Guid>> Create(CreateRoleInputDto input)
 	{
 		var id = await _roleService.CreateAsync(input);
-		return Ok(new { Id = id });
+		return Ok(id);
 	}
 
 	[HttpPut("{id:guid}")]

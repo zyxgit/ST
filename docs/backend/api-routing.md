@@ -86,6 +86,79 @@ public sealed class ProductsController : AbstractControllerBase
 
 如果确实需要绝对路由，必须使用 ASP.NET Core 支持的绝对模板并在代码评审中说明原因，例如 `~/api/products`；否则不要在 Action 上重复写 `api/...`。
 
+## 返回类型规范
+
+为了确保 Swagger / Scalar 能正确显示响应 DTO，Controller 方法的返回类型必须遵循以下规则：
+
+### 核心原则
+
+**能用 `ActionResult<T>` 就不用 `IActionResult`。**
+
+```csharp
+// ✅ 正确 - Swagger 自动识别返回类型
+public async Task<ActionResult<OrderDto>> GetOrder(Guid id) { ... }
+
+// ❌ 错误 - Swagger 无法识别返回类型
+public async Task<IActionResult> GetOrder(Guid id) { ... }
+```
+
+### 各场景返回类型
+
+| 场景 | 返回类型 | 示例 |
+|------|---------|------|
+| 返回 DTO | `ActionResult<T>` | `ActionResult<OrderDto>` |
+| 返回列表 | `ActionResult<List<T>>` | `ActionResult<List<SkuDto>>` |
+| 返回分页 | `ActionResult<PagedResultDto<T>>` | `ActionResult<PagedResultDto<OrderDto>>` |
+| 返回布尔/ID | `ActionResult<bool>` / `ActionResult<Guid>` | `ActionResult<bool>` |
+| 返回文件流 | `IActionResult` + `[Produces]` | 见下方示例 |
+| 无返回体 | `Task` 或 `IActionResult` | `public async Task Delete(...)` |
+| 匿名类型 | `IActionResult` + `[ProducesResponseType]` | 见下方示例 |
+
+### 特殊情况处理
+
+**1. 文件下载**
+
+```csharp
+[HttpGet("{id:guid}/download")]
+[Produces("application/octet-stream")]
+public async Task<IActionResult> Download(Guid id) { ... }
+```
+
+**2. 匿名类型返回**
+
+```csharp
+[HttpGet("me")]
+[ProducesResponseType(typeof(object), 200)]
+public async Task<IActionResult> Me() { ... }
+```
+
+**3. CreatedAtAction（201 响应）**
+
+```csharp
+[HttpPost]
+[ProducesResponseType(typeof(ProductDto), 201)]
+public async Task<IActionResult> Create(CreateProductDto input) { ... }
+```
+
+**4. 无返回体的操作**
+
+```csharp
+// 推荐：直接返回 Task，Swagger 显示为 200 空响应
+[HttpPut("{id:guid}")]
+public async Task Update(Guid id, UpdateDto input) { ... }
+
+// 也可以：返回 204 NoContent
+[HttpDelete("{id:guid}")]
+public async Task<IActionResult> Delete(Guid id) { ... }
+```
+
+### 验收检查
+
+新增接口时检查：
+- [ ] 有具体 DTO 返回的方法使用了 `ActionResult<T>`。
+- [ ] 匿名类型或文件流使用了 `[ProducesResponseType]` 标注。
+- [ ] Scalar 文档中能正确显示响应体结构。
+
 ## 新接口设计表
 
 每个新接口开发前必须在任务说明或 PR 中写出：
@@ -118,3 +191,4 @@ public sealed class ProductsController : AbstractControllerBase
 - [ ] 权限不足时返回 401/403，而不是 404。
 - [ ] 前端 API 路径与 Gateway 外部路径一致。
 - [ ] 文档记录外部路径、下游路径、权限码和验证命令。
+- [ ] 返回类型使用 `ActionResult<T>`，Scalar 能显示响应体结构。

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Web;
 using Microsoft.Extensions.Configuration;
 using ST.MS.FileUpload.Domain.Services;
 
@@ -58,14 +59,15 @@ public sealed class SignedUrlService : ISignedUrlService
 		// 计算签名
 		var signature = ComputeHmacSha256(payload, GetValidatedKey());
 
-		// 构建令牌（Base64 编码的负载）
+		// 构建令牌（Base64 URL-safe 编码）
 		var token = Convert.ToBase64String(Encoding.UTF8.GetBytes(payload))
 			.Replace('+', '-')
 			.Replace('/', '_')
 			.TrimEnd('=');
 
-		// 构建完整 URL
-		var url = $"{_baseUrl}{SignedUrlPath}/{token}?sig={signature}";
+		// 构建完整 URL（签名需要 URL 编码，因为 Base64 包含 + / = 字符）
+		var encodedSignature = HttpUtility.UrlEncode(signature);
+		var url = $"{_baseUrl}{SignedUrlPath}/{token}?sig={encodedSignature}";
 
 		return new SignedUrlResult
 		{
@@ -83,6 +85,12 @@ public sealed class SignedUrlService : ISignedUrlService
 
 		try
 		{
+			// URL 解码签名（处理浏览器编码的 + / = 字符）
+			var decodedSignature = HttpUtility.UrlDecode(signature);
+
+			// 处理 + 被解码为空格的情况（某些浏览器/代理会将 + 当作空格）
+			decodedSignature = decodedSignature.Replace(' ', '+');
+
 			// 解码令牌
 			var paddedToken = token
 				.Replace('-', '+')
@@ -98,7 +106,7 @@ public sealed class SignedUrlService : ISignedUrlService
 
 			// 验证签名
 			var expectedSignature = ComputeHmacSha256(payload, GetValidatedKey());
-			if (!string.Equals(signature, expectedSignature, StringComparison.Ordinal))
+			if (!string.Equals(decodedSignature, expectedSignature, StringComparison.Ordinal))
 				return SignedUrlValidationResult.Failure("签名验证失败");
 
 			// 解析负载
