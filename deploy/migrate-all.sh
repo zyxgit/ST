@@ -1,7 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR/.."
 
 # 读取 .env 文件
-ENV_FILE=".env"
+ENV_FILE="$SCRIPT_DIR/.env"
 if [ ! -f "$ENV_FILE" ]; then
   echo "❌ 未找到 deploy/.env，请先复制 .env.example 为 .env 并填写配置"
   exit 1
@@ -14,17 +18,12 @@ set +a
 
 CONN_PREFIX="Host=127.0.0.1;Port=${POSTGRES_HOST_PORT:-25432};Username=${PGUSER};Password=${PGPASSWORD}"
 
-declare -A SERVICES=(
-  ["st_identity"]="Identity"
-  ["st_operationlog"]="OperationLog"
-  ["st_fileupload"]="FileUpload"
-  ["st_order"]="Order"
-  ["st_inventory"]="Inventory"
-  ["st_payment"]="Payment"
-)
+# 数据库名=项目名
+SERVICES="st_identity:Identity st_operationlog:OperationLog st_fileupload:FileUpload st_order:Order st_inventory:Inventory st_payment:Payment"
 
-for db in "${!SERVICES[@]}"; do
-  svc="${SERVICES[$db]}"
+for entry in $SERVICES; do
+  db="${entry%%:*}"
+  svc="${entry#*:}"
   echo ">>> Updating $db ..."
   export Database__ConnectionString="${CONN_PREFIX};Database=$db"
   dotnet ef database update \
