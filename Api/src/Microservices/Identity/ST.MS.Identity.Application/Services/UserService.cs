@@ -510,6 +510,9 @@ public class UserService : AbstractAppService, IUserService
 		var user = await _dbContext.Users.FirstOrDefaultAsync(x => x.Id == _userContext.UserId.Value)
 			?? throw new BusinessException("用户不存在");
 
+		if (user.Email == "test@qq.com")
+			throw new BusinessException("演示用户禁止修改密码");
+
 		if (!PasswordHelper.VerifyPassword(input.OldPassword, user.Password.Hash, user.Password.Salt))
 			throw new BusinessException("原密码错误");
 

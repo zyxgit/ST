@@ -67,7 +67,7 @@ const avatarUrl = computed(() => {
   if (!fileId) return undefined
   const base = import.meta.env.VITE_API_BASE_URL
   const prefix = base?.startsWith('http') ? base.replace(/\/+$/, '') : ''
-  return `${prefix}/api/files/${fileId}/public/download`
+  return `${prefix}/api/files/${fileId}/download`
 })
 const showSettingsDrawer = ref(false)
 const showProfileModal = ref(false)

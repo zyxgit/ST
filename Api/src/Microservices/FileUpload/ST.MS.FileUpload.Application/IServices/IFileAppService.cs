@@ -22,8 +22,8 @@ public interface IFileAppService : IAppService
     /// <summary>文件列表分页查询</summary>
     Task<PagedResultDto<FileInfoDto>> GetListAsync(FileQueryInputDto input);
 
-    /// <summary>下载文件（认证用户，Private 文件仅上传者可下载）</summary>
-    Task<FileDownloadResultDto> DownloadWithAuthAsync(Guid id, Guid userId);
+    /// <summary>下载文件（Public 直接返回，Private 仅上传者可下载）</summary>
+    Task<FileDownloadResultDto> DownloadAsync(Guid id, Guid? userId);
 
     /// <summary>下载文件（签名 URL 专用，不做 Owner 校验）</summary>
     Task<FileDownloadResultDto> DownloadAsync(Guid id);

@@ -87,26 +87,13 @@ public sealed class FileController : AbstractControllerBase
     }
 
     /// <summary>
-    /// 下载文件（Private 文件仅上传者可下载）
+    /// 下载文件（Public 文件无需认证，Private 文件仅上传者可下载）
     /// </summary>
     [HttpGet("{id:guid}/download")]
-    [PermissionAuthorize(Permission.FileQuery)]
-    [OperationLog("下载文件", RecordRequest = true, RecordResponse = false)]
+    [AllowAnonymous]
     public async Task<IActionResult> Download(Guid id)
     {
-        var userId = _userContext.UserId ?? throw new BusinessException("用户未登录");
-        var result = await _fileAppService.DownloadWithAuthAsync(id, userId);
-        return File(result.Stream, result.ContentType, result.FileName);
-    }
-
-    /// <summary>
-    /// 公开下载文件（仅 Public 文件可用，无需认证）
-    /// </summary>
-    [HttpGet("{id:guid}/public/download")]
-    [AllowAnonymous]
-    public async Task<IActionResult> PublicDownload(Guid id)
-    {
-        var result = await _fileAppService.DownloadPublicAsync(id);
+        var result = await _fileAppService.DownloadAsync(id, _userContext.UserId);
         return File(result.Stream, result.ContentType, result.FileName);
     }
 

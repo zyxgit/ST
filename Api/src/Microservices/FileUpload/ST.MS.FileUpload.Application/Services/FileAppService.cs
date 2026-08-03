@@ -84,7 +84,7 @@ public sealed class FileAppService : AbstractAppService, IFileAppService
 
         // 4. 返回下载 URL（不暴露存储路径）
         var downloadUrl = accessLevel == FileAccessLevel.Public
-            ? $"/api/files/{entity.Id}/public/download"
+            ? $"/api/files/{entity.Id}/download"
             : _signedUrlService.GenerateSignedUrl(entity.Id).Url;
 
         FileUploadMetrics.UploadCount.Add(1);
@@ -166,7 +166,7 @@ public sealed class FileAppService : AbstractAppService, IFileAppService
         };
     }
 
-    public async Task<FileDownloadResultDto> DownloadWithAuthAsync(Guid id, Guid userId)
+    public async Task<FileDownloadResultDto> DownloadAsync(Guid id, Guid? userId)
     {
         var entity = await _dbContext.Files
             .AsNoTracking()
@@ -235,7 +235,7 @@ public sealed class FileAppService : AbstractAppService, IFileAppService
     private FileInfoDto MapToDto(FileEntity entity)
     {
         var downloadUrl = entity.AccessLevel == FileAccessLevel.Public
-            ? $"/api/files/{entity.Id}/public/download"
+            ? $"/api/files/{entity.Id}/download"
             : _signedUrlService.GenerateSignedUrl(entity.Id).Url;
 
         return new FileInfoDto
