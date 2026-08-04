@@ -2,6 +2,8 @@
 
 ST 是一个企业级微服务后台管理系统模板，采用 **.NET 微服务 + YARP Gateway + Aspire + PostgreSQL + Redis + RabbitMQ + Vue 3**。仓库同时提供面向人类和 AI Agent 的工程规范文档，便于持续演进高并发、可靠消息、SaaS、多租户、文件中心和可观测性能力。
 
+🔗 **预览地址**：[https://st-template.xyz](https://st-template.xyz)
+
 ## 项目定位
 
 - **后端微服务**：ASP.NET Core、EF Core、PostgreSQL、Redis、RabbitMQ、OpenTelemetry、NLog、OpenAPI/Scalar。
@@ -10,7 +12,6 @@ ST 是一个企业级微服务后台管理系统模板，采用 **.NET 微服务
 - **文件中心**：FileUpload 提供上传、下载、公开下载、签名下载、分片上传、断点续传与秒传查询入口。
 - **SaaS 基础**：Identity 中包含租户、租户用户、租户配额，多业务表预留 `tenant_id`。
 - **前端管理端**：`Web/` 使用 Vue 3、TypeScript、Vite、Pinia、Vue Router、Naive UI、Axios。
-- **AI 协作规范**：`docs/ai/README.md` 是 AI Agent 唯一入口，强制先做需求合理性审查与不确定问题确认。
 
 ## 仓库结构
 
@@ -116,6 +117,53 @@ cd Web
 pnpm build
 ```
 
+## CI/CD
+
+### GitHub Actions 工作流
+
+| 工作流 | 文件 | 触发方式 | 说明 |
+|--------|------|----------|------|
+| Build Docker Images | `.github/workflows/build-images.yml` | 手动触发 | 并行构建 10 个服务镜像，推送至 GHCR |
+| Deploy to Server | `.github/workflows/deploy.yml` | 构建完成后自动 / 手动触发 | 拉取镜像、迁移数据库、启动服务 |
+
+### 镜像构建
+
+- **后端**：9 个微服务并行构建，使用统一 Dockerfile（多阶段构建，SDK 10.0 编译 + ASP.NET 运行时）
+- **前端**：Node 22 + pnpm 构建，Nginx Alpine 托管静态文件
+- **镜像仓库**：GitHub Container Registry (`ghcr.io`)
+- **构建缓存**：GitHub Actions Cache (`type=gha`)
+
+### 镜像标签策略
+
+| 标签 | 说明 |
+|------|------|
+| `latest` | main 分支最新构建 |
+| `YYYYMMDD-<run>` | 日期 + 运行号 |
+| `dev-YYYYMMDD-<run>` | 开发标签，自动清理旧版本 |
+| `sha-<short>` | Git commit SHA |
+| `<branch>` | 分支名 |
+
+### 部署流程
+
+```text
+构建完成 → 自托管 Runner 拉取代码 → 登录 GHCR → 拉取镜像
+  → 启动基础设施 (PostgreSQL/Redis/RabbitMQ)
+  → 等待健康检查通过
+  → 执行数据库迁移
+  → 启动全部服务
+  → 验证容器状态
+```
+
+### 自托管 Runner
+
+- 部署使用 GitHub Actions self-hosted runner
+- 支持 2C2G 低配服务器（`docker-compose.2c2g.yml`）
+- 部署目录：`/home/admin/st/deploy`
+
+### 镜像清理
+
+自动清理旧的 `dev-*` 标签镜像，每个服务保留最近 4 个版本，支持 dry-run 模式预览。
+
 ## 文档入口
 
 | 文档 | 用途 |
@@ -130,14 +178,6 @@ pnpm build
 | `docs/status/README.md` | 当前已实现能力 |
 | `docs/ai/README.md` | AI Agent 唯一入口与执行纪律 |
 | `docs/skills/README.md` | AI 高密度技能卡索引 |
-
-## AI / 协作底线
-
-1. AI 接到需求后，必须先做合理性审查；不合理需求需先给出原因和优化方案，用户二次确认后才能按原方案执行。
-2. AI 有不确定问题时必须先提问，禁止脑补路径、服务名、接口、配置键或业务规则。
-3. 功能变更必须同步文档；文档与源码冲突时，以源码为准并修正文档。
-4. 禁止提交真实密钥、生产连接串、JWT SigningKey、SMTP 密码、对象存储 AccessKey。
-5. 日志禁止输出完整 JWT、Refresh Token、密码、验证码等敏感信息。
 
 ## License
 
