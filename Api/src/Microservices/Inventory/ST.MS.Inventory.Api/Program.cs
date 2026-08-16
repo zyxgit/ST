@@ -8,6 +8,7 @@ using ST.Infra.IntegrationEvents.Payment;
 using ST.Infra.Redis.Extensions;
 using ST.Infra.ReliableMessaging.Extensions;
 using ST.MS.Inventory.Application;
+using ST.MS.Inventory.Application.Options;
 using ST.MS.Inventory.Application.Services;
 using ST.MS.Inventory.Domain;
 using ST.MS.Inventory.Infra;
@@ -38,7 +39,8 @@ try
 	// 注册 Redis 库存预扣服务
 	builder.Services.AddInventoryRedis();
 
-	// 注册启动时 DB→Redis 库存同步服务（确保种子数据在 Redis 中可用）
+	// 注册库存 Redis 同步服务（启动时全量同步 + 定时同步 + Redis 恢复检测）
+	builder.Services.Configure<InventorySyncOptions>(builder.Configuration.GetSection(InventorySyncOptions.SectionName));
 	builder.Services.AddHostedService<InventoryRedisSyncService>();
 
 	builder.Services.AddOpenApi(options =>

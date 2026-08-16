@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ST.Infra.Redis.Inventory;
 using ST.MS.Inventory.Application.Dto;
-using ST.MS.Inventory.Application.Services;
+using ST.MS.Inventory.Application.IServices;
 using ST.MS.Inventory.Infra.DbContext;
 
 namespace ST.MS.Inventory.Api.Controllers;

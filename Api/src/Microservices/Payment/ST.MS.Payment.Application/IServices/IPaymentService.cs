@@ -1,11 +1,12 @@
 using ST.MS.Payment.Application.Dto;
+using ST.Shared.Application;
 
-namespace ST.MS.Payment.Application.Services;
+namespace ST.MS.Payment.Application.IServices;
 
 /// <summary>
 /// 支付服务接口。
 /// </summary>
-public interface IPaymentService
+public interface IPaymentService : IAppService
 {
 	/// <summary>
 	/// 模拟支付成功。

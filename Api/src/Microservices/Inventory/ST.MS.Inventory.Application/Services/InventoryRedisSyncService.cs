@@ -2,47 +2,136 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ST.Infra.Redis.Inventory;
+using ST.Infra.Redis.Provider;
+using ST.MS.Inventory.Application.Options;
 using ST.MS.Inventory.Infra.DbContext;
 
 namespace ST.MS.Inventory.Application.Services;
 
 /// <summary>
-/// 应用启动时，将 DB 中的库存数据同步到 Redis。
-/// 确保种子数据或其他直接写 DB 的库存变更在 Redis 中可用。
+/// 库存 Redis 同步后台服务。
+/// <list type="bullet">
+///   <item>应用启动时执行一次全量同步</item>
+///   <item>之后按配置间隔定时同步，兜底 TTL 过期、小范围数据漂移</item>
+///   <item>检测到 Redis 断线恢复时立即触发一次同步</item>
+/// </list>
 /// </summary>
-public sealed class InventoryRedisSyncService : IHostedService
+public sealed class InventoryRedisSyncService : BackgroundService
 {
-	private readonly IServiceProvider _serviceProvider;
-	private readonly ILogger<InventoryRedisSyncService> _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IRedisClient _redisClient;
+    private readonly IOptions<InventorySyncOptions> _options;
+    private readonly ILogger<InventoryRedisSyncService> _logger;
 
-	public InventoryRedisSyncService(IServiceProvider serviceProvider, ILogger<InventoryRedisSyncService> logger)
-	{
-		_serviceProvider = serviceProvider;
-		_logger = logger;
-	}
+    /// <summary>Redis 恢复信号，用于提前唤醒定时循环</summary>
+    private TaskCompletionSource<bool>? _reconnectSignal;
 
-	/// <summary>
-	/// 在应用启动时（种子数据已通过 CodeFirstExecutors 执行），将所有 SKU 库存同步到 Redis。
-	/// </summary>
-	public async Task StartAsync(CancellationToken ct)
-	{
-		using var scope = _serviceProvider.CreateScope();
-		var dbContext = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
-		var inventoryRedis = scope.ServiceProvider.GetRequiredService<IInventoryRedisService>();
+    public InventoryRedisSyncService(
+        IServiceScopeFactory scopeFactory,
+        IRedisClient redisClient,
+        IOptions<InventorySyncOptions> options,
+        ILogger<InventoryRedisSyncService> logger)
+    {
+        _scopeFactory = scopeFactory;
+        _redisClient = redisClient;
+        _options = options;
+        _logger = logger;
+    }
 
-		var skus = await dbContext.Skus.AsNoTracking().ToListAsync(ct);
+    public override async Task StartAsync(CancellationToken ct)
+    {
+        // 启动时立即同步一次
+        await SyncAllAsync(ct);
+        await base.StartAsync(ct);
+    }
 
-		foreach (var sku in skus)
-		{
-			await inventoryRedis.SyncStockAsync(sku.SkuId, sku.Available, sku.Frozen, sku.Sold, ct);
-			_logger.LogInformation(
-				"SKU 同步到 Redis，SkuId={SkuId} 可用={Available} 冻结={Frozen} 已售={Sold}",
-				sku.SkuId, sku.Available, sku.Frozen, sku.Sold);
-		}
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        if (!_options.Value.Enabled)
+        {
+            _logger.LogInformation("Inventory Redis periodic sync is disabled.");
+            return;
+        }
 
-		_logger.LogInformation("库存 Redis 同步完成，SKU 数量={Count}", skus.Count);
-	}
+        var interval = TimeSpan.FromSeconds(_options.Value.SyncIntervalSeconds);
+        _logger.LogInformation("Inventory Redis periodic sync started. Interval={Interval}", interval);
 
-	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        // 订阅 Redis 恢复事件
+        var connection = _redisClient.GetConnection();
+        connection.ConnectionRestored += OnConnectionRestored;
+
+        try
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(interval, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                // 检查是否因 Redis 恢复被提前唤醒
+                var isReconnect = false;
+                if (_reconnectSignal is { Task.IsCompleted: true })
+                {
+                    isReconnect = true;
+                    _reconnectSignal = null;
+                }
+
+                try
+                {
+                    if (isReconnect)
+                    {
+                        _logger.LogWarning("Redis connection restored, triggering immediate inventory sync.");
+                    }
+
+                    await SyncAllAsync(stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Inventory Redis periodic sync failed.");
+                }
+            }
+        }
+        finally
+        {
+            connection.ConnectionRestored -= OnConnectionRestored;
+        }
+    }
+
+    private void OnConnectionRestored(object? sender, global::StackExchange.Redis.ConnectionFailedEventArgs e)
+    {
+        // 设置信号，让定时循环在下次迭代时立即执行同步
+        _reconnectSignal?.TrySetResult(true);
+    }
+
+    /// <summary>
+    /// 从数据库全量同步所有 SKU 库存到 Redis。
+    /// </summary>
+    private async Task SyncAllAsync(CancellationToken ct)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+        var inventoryRedis = scope.ServiceProvider.GetRequiredService<IInventoryRedisService>();
+
+        var skus = await dbContext.Skus.AsNoTracking().ToListAsync(ct);
+        var count = 0;
+
+        foreach (var sku in skus)
+        {
+            await inventoryRedis.SyncStockAsync(sku.SkuId, sku.Available, sku.Frozen, sku.Sold, ct);
+            count++;
+        }
+
+        _logger.LogInformation("Inventory Redis sync completed. SKU count={Count}", count);
+    }
 }

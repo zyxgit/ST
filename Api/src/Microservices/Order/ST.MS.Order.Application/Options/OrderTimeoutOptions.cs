@@ -1,4 +1,4 @@
-namespace ST.MS.Order.Application.Services;
+namespace ST.MS.Order.Application.Options;
 
 /// <summary>
 /// 订单超时自动取消配置。

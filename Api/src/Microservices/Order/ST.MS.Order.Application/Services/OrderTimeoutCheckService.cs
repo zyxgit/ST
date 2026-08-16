@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ST.MS.Order.Application.IServices;
+using ST.MS.Order.Application.Options;
 using ST.MS.Order.Domain.Enums;
 using ST.MS.Order.Infra.DbContext;
 

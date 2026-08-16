@@ -5,8 +5,10 @@ using ST.Infra.IntegrationEvents.Payment;
 using ST.Infra.ReliableMessaging.Abstractions;
 using ST.Infra.ReliableMessaging.Models;
 using ST.MS.Payment.Application.Dto;
+using ST.MS.Payment.Application.IServices;
 using ST.MS.Payment.Domain.Enums;
 using ST.MS.Payment.Infra.DbContext;
+using ST.Shared.Application.Services;
 using ST.Shared.Exceptions;
 
 namespace ST.MS.Payment.Application.Services;
@@ -15,7 +17,7 @@ namespace ST.MS.Payment.Application.Services;
 /// 支付服务实现。
 /// 模拟支付成功/失败，通过 Outbox 发布集成事件。
 /// </summary>
-public class PaymentService : IPaymentService, ITransientDependency
+public class PaymentService : AbstractAppService, IPaymentService
 {
 	private readonly PaymentDbContext _dbContext;
 	private readonly IOutboxStore _outboxStore;

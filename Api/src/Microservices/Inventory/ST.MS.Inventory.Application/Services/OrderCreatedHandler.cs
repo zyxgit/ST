@@ -5,6 +5,7 @@ using ST.Infra.IntegrationEvents.Inventory;
 using ST.Infra.IntegrationEvents.Orders;
 using ST.Infra.ReliableMessaging.Abstractions;
 using ST.Infra.ReliableMessaging.Models;
+using ST.MS.Inventory.Application.IServices;
 using ST.MS.Inventory.Infra.DbContext;
 
 namespace ST.MS.Inventory.Application.Services;

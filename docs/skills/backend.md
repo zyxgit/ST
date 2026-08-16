@@ -18,6 +18,24 @@
 - `Api/src/ServiceShared/`
 - `Api/src/Infrastructures/`
 
+## Application 层目录规范
+
+Application 层内部按职责分文件夹，禁止接口和实现混放：
+
+```text
+ST.MS.<Service>.Application/
+├── IServices/          # 业务接口（I{X}Service），继承 IAppService
+├── Services/           # 业务实现（{X}Service）、集成事件 Handler、后台任务
+├── Options/            # 配置 POCO 类（{X}Options）
+└── Dto/                # 数据传输对象
+```
+
+- **接口**放 `IServices/`，命名空间 `ST.MS.<Service>.Application.IServices`，继承 `IAppService`。
+- **实现类**放 `Services/`，继承 `AbstractAppService, I{X}Service`（不再单独写 `ITransientDependency`，`AbstractAppService` 已实现）。
+- **配置类**放 `Options/`，命名空间 `ST.MS.<Service>.Application.Options`，不与业务 Service 混放。
+- **Handler / 后台任务**放 `Services/`，它们是实现类，不是接口。
+- DI 注册由 Autofac 程序集扫描自动完成（`ITransientDependency` / `IScopedDependency` / `ISingletonDependency`），无需手动注册。
+
 ## 开发规则
 
 - 新服务先按 service-template 检查 Gateway/Aspire/Docker Compose，避免 502。

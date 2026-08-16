@@ -1,13 +1,14 @@
 using ST.Infra.IntegrationEvents.Orders;
 using ST.MS.Inventory.Application.Dto;
+using ST.Shared.Application;
 using ST.Shared.Application.Dtos;
 
-namespace ST.MS.Inventory.Application.Services;
+namespace ST.MS.Inventory.Application.IServices;
 
 /// <summary>
 /// 库存服务接口。
 /// </summary>
-public interface IInventoryService
+public interface IInventoryService : IAppService
 {
 	/// <summary>
 	/// 冻结库存（Redis 预扣 + DB 乐观锁）。

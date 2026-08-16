@@ -7,13 +7,14 @@ using ST.Infra.ReliableMessaging.Abstractions;
 using ST.Infra.ReliableMessaging.Models;
 using ST.MS.Order.Application.Dto;
 using ST.MS.Order.Domain.Entities;
-using ST.Shared.Application.Dtos;
 using ST.MS.Order.Domain.Enums;
 using ST.MS.Order.Infra.DbContext;
+using ST.MS.Order.Application.IServices;
 using ST.Shared.Application;
+using ST.Shared.Application.Services;
+using ST.Shared.Application.Dtos;
 using ST.Shared.Exceptions;
 using ST.Shared.Security;
-
 using OrderEntity = ST.MS.Order.Domain.Entities.Order;
 
 namespace ST.MS.Order.Application.Services;
@@ -22,7 +23,7 @@ namespace ST.MS.Order.Application.Services;
 /// 订单服务实现。
 /// 创建/取消订单时，业务数据与 Outbox 消息在同一事务中提交。
 /// </summary>
-public class OrderService : IOrderService, ITransientDependency
+public class OrderService : AbstractAppService, IOrderService
 {
 	private readonly OrderDbContext _dbContext;
 	private readonly IOutboxStore _outboxStore;

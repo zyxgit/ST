@@ -1,9 +1,10 @@
 using ST.Infra.Redis.Cache;
 using ST.MS.Test.Domain.Entities;
+using ST.Shared.Application.Services;
 
 namespace ST.MS.Test.Application.Services;
 
-public class TestService : ITransientDependency
+public class TestService : AbstractAppService
 {
 	private readonly IRedisCacheManager _redisManager;
 

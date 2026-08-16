@@ -34,6 +34,21 @@ Api/src/Microservices/<Service>/
 | Domain | 实体、值对象、枚举、领域方法 | 依赖 EF、Redis、HTTP、RabbitMQ |
 | Infra | DbContext、迁移、Repository、外部服务实现 | 反向依赖 Api |
 
+### Application 层内部结构
+
+```text
+ST.MS.<Service>.Application/
+├── IServices/          # 业务接口，继承 IAppService
+├── Services/           # 业务实现、Handler、后台任务，继承 AbstractAppService
+├── Options/            # 配置 POCO 类
+└── Dto/                # 数据传输对象
+```
+
+- 接口与实现必须分开放置，禁止混在同一个 `Services/` 目录。
+- 接口命名 `I{X}Service`，放在 `IServices/`，继承 `IAppService`。
+- 实现类继承 `AbstractAppService`（已包含 `ITransientDependency`），不再单独标记 `ITransientDependency`。
+- 配置类（`{X}Options`）放 `Options/`，不放 `Services/`。
+
 ## 服务模板、Controller 与 API
 
 新增服务和接口必须先阅读：

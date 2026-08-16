@@ -1,5 +1,5 @@
 using ST.MS.Order.Application.Dto;
-using ST.MS.Order.Application.Services;
+using ST.MS.Order.Application.IServices;
 using ST.Shared.Application.Dtos;
 
 namespace ST.MS.Order.Api.Controllers;

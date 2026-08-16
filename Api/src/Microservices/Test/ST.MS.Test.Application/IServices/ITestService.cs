@@ -1,9 +1,10 @@
 using ST.Infra.Core.Attributes;
 using ST.MS.Test.Application.Dto;
+using ST.Shared.Application;
 
-namespace ST.MS.Test.Application.Services;
+namespace ST.MS.Test.Application.IServices;
 
-public interface ITestService
+public interface ITestService : IAppService
 {
 	[UnitOfWork]
 	Task TestUow1111();

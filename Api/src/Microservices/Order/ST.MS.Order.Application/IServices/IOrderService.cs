@@ -1,12 +1,13 @@
 using ST.MS.Order.Application.Dto;
+using ST.Shared.Application;
 using ST.Shared.Application.Dtos;
 
-namespace ST.MS.Order.Application.Services;
+namespace ST.MS.Order.Application.IServices;
 
 /// <summary>
 /// 订单服务接口。
 /// </summary>
-public interface IOrderService
+public interface IOrderService : IAppService
 {
 	/// <summary>
 	/// 创建订单（含 Outbox 消息写入，同一事务）。

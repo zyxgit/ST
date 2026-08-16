@@ -8,6 +8,7 @@ using ST.Infra.IntegrationEvents.Payment;
 using ST.Infra.Redis.Extensions;
 using ST.Infra.ReliableMessaging.Extensions;
 using ST.MS.Order.Application;
+using ST.MS.Order.Application.Options;
 using ST.MS.Order.Application.Services;
 using ST.MS.Order.Domain;
 using ST.MS.Order.Infra;

@@ -1,5 +1,5 @@
 using ST.MS.Payment.Application.Dto;
-using ST.MS.Payment.Application.Services;
+using ST.MS.Payment.Application.IServices;
 
 namespace ST.MS.Payment.Api.Controllers;
 

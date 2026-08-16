@@ -3,9 +3,11 @@ using Microsoft.Extensions.Logging;
 using ST.Infra.IntegrationEvents.Orders;
 using ST.Infra.Redis.Inventory;
 using ST.MS.Inventory.Application.Dto;
+using ST.MS.Inventory.Application.IServices;
 using ST.MS.Inventory.Domain.Entities;
 using ST.MS.Inventory.Domain.Enums;
 using ST.MS.Inventory.Infra.DbContext;
+using ST.Shared.Application.Services;
 using ST.Shared.Exceptions;
 
 namespace ST.MS.Inventory.Application.Services;
@@ -16,7 +18,7 @@ namespace ST.MS.Inventory.Application.Services;
 /// 1. Redis Lua 原子预扣（热点层，拦截大部分并发请求）
 /// 2. PostgreSQL 乐观锁（兜底层，保证最终一致性）
 /// </summary>
-public class InventoryService : IInventoryService, ITransientDependency
+public class InventoryService : AbstractAppService, IInventoryService
 {
 	private readonly InventoryDbContext _dbContext;
 	private readonly IInventoryRedisService _inventoryRedis;
