@@ -7,6 +7,7 @@ using ST.Infra.Redis.Inventory;
 using ST.Infra.Redis.Provider;
 using ST.MS.Inventory.Application.Options;
 using ST.MS.Inventory.Infra.DbContext;
+using ST.Shared;
 
 namespace ST.MS.Inventory.Application.Services;
 
@@ -42,8 +43,16 @@ public sealed class InventoryRedisSyncService : BackgroundService
 
     public override async Task StartAsync(CancellationToken ct)
     {
-        // 启动时立即同步一次
-        await SyncAllAsync(ct);
+        // 启动时立即同步一次（失败不阻止服务启动，后续定时任务会兜底）
+        try
+        {
+            await SyncAllAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Inventory Redis startup sync failed, will retry in next periodic cycle.");
+        }
+
         await base.StartAsync(ct);
     }
 
@@ -116,6 +125,7 @@ public sealed class InventoryRedisSyncService : BackgroundService
 
     /// <summary>
     /// 从数据库全量同步所有 SKU 库存到 Redis。
+    /// 按租户分组同步，确保 Redis 键带上正确的租户前缀。
     /// </summary>
     private async Task SyncAllAsync(CancellationToken ct)
     {
@@ -123,14 +133,34 @@ public sealed class InventoryRedisSyncService : BackgroundService
         var dbContext = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
         var inventoryRedis = scope.ServiceProvider.GetRequiredService<IInventoryRedisService>();
 
+        // 先同步无租户的 SKU（TenantId 为空的兜底数据）
         var skus = await dbContext.Skus.AsNoTracking().ToListAsync(ct);
+
+        // 按租户分组，逐租户设置 TenantContext 后同步，确保 Redis 键带正确的租户前缀
+        var tenantGroups = skus.GroupBy(s => s.TenantId);
         var count = 0;
 
-        foreach (var sku in skus)
+        foreach (var group in tenantGroups)
         {
-            await inventoryRedis.SyncStockAsync(sku.SkuId, sku.Available, sku.Frozen, sku.Sold, ct);
-            count++;
+            if (group.Key == Guid.Empty)
+            {
+                // 无租户数据，TenantContext 保持 null
+                TenantContext.CurrentTenantId = null;
+            }
+            else
+            {
+                TenantContext.CurrentTenantId = group.Key;
+            }
+
+            foreach (var sku in group)
+            {
+                await inventoryRedis.SyncStockAsync(sku.SkuId, sku.Available, sku.Frozen, sku.Sold, ct);
+                count++;
+            }
         }
+
+        // 同步完成后清除租户上下文，避免影响其他后台逻辑
+        TenantContext.CurrentTenantId = null;
 
         _logger.LogInformation("Inventory Redis sync completed. SKU count={Count}", count);
     }

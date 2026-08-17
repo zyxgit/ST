@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ST.Infra.Repository.Entities;
 using ST.MS.Identity.Domain.Enums;
 using ST.Shared.Exceptions;
 
@@ -8,7 +9,7 @@ namespace ST.MS.Identity.Domain.Aggregates.PermissionAggregate;
 /// 权限表
 /// </summary>
 [Index(nameof(Code), IsUnique = true)]
-public class Permission : AggregateRoot
+public class Permission : AggregateRoot, ISoftDelete
 {
 	protected Permission() { } // 👈 给 EF 用
 
@@ -80,7 +81,7 @@ public class Permission : AggregateRoot
 	/// <summary>
 	/// 是否删除
 	/// </summary>
-	public bool IsDeleted { get; private set; }
+	public bool IsDeleted { get; set; }
 
 	public void UpdateBasicInfo(
 		Guid? parentId,

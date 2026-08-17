@@ -43,7 +43,6 @@ public class Order : AggregateRoot, ITenantEntity
 		TotalAmount = totalAmount;
 		Items = items;
 		Status = OrderStatus.Pending;
-		CreateTime = DateTime.UtcNow;
 	}
 
 	/// <summary>
