@@ -65,7 +65,9 @@ public class OrderService : AbstractAppService, IOrderService
 
 		// ── 同步库存预扣（Redis Lua 原子操作，check-and-decrement 一步完成） ──
 		// 解决并发竞态：多个请求同时通过只读检查导致超卖
+		// 缓存未命中时跳过 Redis 预扣，交给 Inventory 服务 DB 兜底
 		var frozenItems = new List<(Guid SkuId, int Quantity)>();
+		var cacheMiss = false;
 		try
 		{
 			foreach (var item in input.Items)
@@ -73,7 +75,21 @@ public class OrderService : AbstractAppService, IOrderService
 				var frozen = await _inventoryRedis.TryFreezeAsync(item.SkuId, item.Quantity, ct);
 				if (!frozen)
 				{
-					// 库存不足，回滚已预扣的项
+					// 区分缓存未命中和库存不足
+					var keyExists = await _inventoryRedis.ExistsAsync(item.SkuId, ct);
+					if (!keyExists)
+					{
+						// 缓存未命中，回滚已预扣项，跳过 Redis 预扣交给 Inventory 服务 DB 兜底
+						_logger.LogWarning("Redis cache miss for SkuId={SkuId}, falling back to DB freeze.", item.SkuId);
+						foreach (var prev in frozenItems)
+						{
+							await _inventoryRedis.ReleaseAsync(prev.SkuId, prev.Quantity, ct);
+						}
+						cacheMiss = true;
+						break;
+					}
+
+					// 库存真的不足，回滚已预扣项
 					foreach (var prev in frozenItems)
 					{
 						await _inventoryRedis.ReleaseAsync(prev.SkuId, prev.Quantity, ct);
@@ -125,13 +141,14 @@ public class OrderService : AbstractAppService, IOrderService
 
 		// 写入 Outbox 消息（与订单同一事务）
 		// RedisPreFrozen=true 告知 Inventory 服务跳过 Redis 预扣，仅做 DB 兜底
+		// 缓存未命中时 RedisPreFrozen=false，Inventory 服务会同时做 Redis + DB 冻结
 		var integrationEvent = new OrderCreatedIntegrationEvent(
 			order.Id,
 			order.OrderNo,
 			order.UserId,
 			order.TotalAmount,
 			orderItems.Select(i => new OrderItemData(i.SkuId, i.ProductName, i.Quantity, i.UnitPrice)).ToList(),
-			RedisPreFrozen: true);
+			RedisPreFrozen: !cacheMiss);
 
 		var outboxMessage = new OutboxMessage
 		{

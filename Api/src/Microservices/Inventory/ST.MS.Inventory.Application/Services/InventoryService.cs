@@ -55,17 +55,29 @@ public class InventoryService : AbstractAppService, IInventoryService
 				var success = await _inventoryRedis.TryFreezeAsync(item.SkuId, item.Quantity, ct);
 				if (!success)
 				{
-					// Redis 库存不足，回滚已预扣的项
-					_logger.LogWarning(
-						"Redis 库存不足，SkuId={SkuId}。回滚 {Count} 个已预扣项。",
-						item.SkuId, redisReserved.Count);
-
-					foreach (var reserved in redisReserved)
+					// 区分缓存未命中和库存不足：键不存在则从 DB 同步后重试
+					var keyExists = await _inventoryRedis.ExistsAsync(item.SkuId, ct);
+					if (!keyExists)
 					{
-						await _inventoryRedis.ReleaseAsync(reserved.SkuId, reserved.Quantity, ct);
+						_logger.LogWarning("Redis cache miss for SkuId={SkuId}, syncing from DB.", item.SkuId);
+						await SyncStockFromDbAsync(item.SkuId, ct);
+						success = await _inventoryRedis.TryFreezeAsync(item.SkuId, item.Quantity, ct);
 					}
 
-					return false;
+					if (!success)
+					{
+						// 库存真的不足，回滚已预扣的项
+						_logger.LogWarning(
+							"Redis 库存不足，SkuId={SkuId}。回滚 {Count} 个已预扣项。",
+							item.SkuId, redisReserved.Count);
+
+						foreach (var reserved in redisReserved)
+						{
+							await _inventoryRedis.ReleaseAsync(reserved.SkuId, reserved.Quantity, ct);
+						}
+
+						return false;
+					}
 				}
 
 				redisReserved.Add((item.SkuId, item.Quantity));
@@ -265,6 +277,19 @@ public class InventoryService : AbstractAppService, IInventoryService
 			skuId, quantity, sku.Available);
 
 		return MapToDto(sku);
+	}
+
+	/// <summary>
+	/// 从 DB 同步单个 SKU 库存到 Redis（缓存未命中时回源）。
+	/// </summary>
+	private async Task SyncStockFromDbAsync(Guid skuId, CancellationToken ct)
+	{
+		var sku = await _dbContext.Skus.AsNoTracking().FirstOrDefaultAsync(s => s.SkuId == skuId, ct);
+		if (sku is not null)
+		{
+			await _inventoryRedis.SyncStockAsync(sku.SkuId, sku.Available, sku.Frozen, sku.Sold, ct);
+			_logger.LogInformation("Synced stock from DB. SkuId={SkuId} Available={Available}", skuId, sku.Available);
+		}
 	}
 
 	/// <summary>

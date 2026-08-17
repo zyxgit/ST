@@ -209,6 +209,14 @@ end";
 		return result == 1;
 	}
 
+	/// <inheritdoc />
+	public async Task<bool> ExistsAsync(Guid skuId, CancellationToken ct = default)
+	{
+		var db = _redisClient.GetDatabase();
+		var availableKey = AvailableKey(skuId);
+		return await db.KeyExistsAsync(availableKey);
+	}
+
 	private static string AvailableKey(Guid skuId) => $"{TenantPrefix}{KeyPrefix}:{skuId}:available";
 	private static string FrozenKey(Guid skuId) => $"{TenantPrefix}{KeyPrefix}:{skuId}:frozen";
 	private static string SoldKey(Guid skuId) => $"{TenantPrefix}{KeyPrefix}:{skuId}:sold";

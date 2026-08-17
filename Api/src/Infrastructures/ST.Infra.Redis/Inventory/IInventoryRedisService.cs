@@ -41,4 +41,11 @@ public interface IInventoryRedisService
 	/// Redis 键不存在时视为库存为 0。
 	/// </summary>
 	Task<bool> CheckAvailableAsync(Guid skuId, int quantity, CancellationToken ct = default);
+
+	/// <summary>
+	/// 检查指定 SKU 的 Redis 库存键是否存在。
+	/// 用于区分"缓存未命中"和"库存不足"：TryFreezeAsync 返回 false 时，
+	/// 若 ExistsAsync 为 false 则是缓存未命中（可回源 DB），否则是库存真的不足。
+	/// </summary>
+	Task<bool> ExistsAsync(Guid skuId, CancellationToken ct = default);
 }
